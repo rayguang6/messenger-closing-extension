@@ -159,12 +159,27 @@ function analyzeConversation() {
             const userMessages = messages.filter(m => m.isUser).length;
             const otherMessages = messages.length - userMessages;
             
+            const messagesHtml = messages.map(m => `
+                <div style="padding: 4px 0; border-bottom: 1px solid #f1f3f5; font-size: 12px; word-wrap: break-word;">
+                    <strong style="color: ${m.isUser ? '#667eea' : '#764ba2'};">${m.sender}:</strong> ${m.message}
+                </div>
+            `).join('');
+
             infoDiv.innerHTML = `
                 <strong>📊 Conversation Analysis:</strong><br>
                 • Total messages: ${messages.length}<br>
                 • Your messages: ${userMessages}<br>
                 • Their messages: ${otherMessages}<br>
                 • Last sender: ${messages[messages.length - 1].sender}
+
+                <details style="margin-top: 12px;">
+                    <summary style="font-weight: 600; cursor: pointer; font-size: 13px; color: #667eea; user-select: none;">
+                        View Scraped Messages
+                    </summary>
+                    <div style="margin-top: 8px; max-height: 150px; overflow-y: auto; background: #fff; border-radius: 6px; padding: 8px; border: 1px solid #e1e5e9;">
+                        ${messagesHtml}
+                    </div>
+                </details>
             `;
             
             // Show simple suggestions (we'll improve this later)
