@@ -1,0 +1,27 @@
+{
+    "manifest_version": 3,
+    "name": "Facebook Chat AI Assistant",
+    "version": "0.1.0",
+    "description": "AI-powered conversation suggestions for Facebook Chat",
+    
+    "permissions": [
+      "activeTab"
+    ],
+    
+    "host_permissions": [
+      "https://www.facebook.com/*"
+    ],
+    
+    "content_scripts": [
+      {
+        "matches": ["https://www.facebook.com/*"],
+        "js": ["content.js"],
+        "run_at": "document_idle"
+      }
+    ],
+    
+    "action": {
+      "default_title": "Facebook Chat AI Assistant",
+      "default_popup": "popup.html"
+    }
+  }
