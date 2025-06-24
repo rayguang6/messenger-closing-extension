@@ -9,7 +9,40 @@ const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 async function callDeepSeekAPI(conversation, guide) {
     try {
         // Improved system prompt: extra guard rails against Markdown/code blocks
-        const systemPrompt = `You are a sales closing coach. Use the following guide to analyze the conversation and provide 3 actionable reply suggestions. For each, identify the sales stage, give the reply, and explain the reasoning.\n\nYou MUST reply ONLY in valid JSON, as an array of objects with keys: stage, suggestion, reason. Do NOT include any markdown, code blocks, triple backticks, headings, or extra commentary. Reply ONLY with the JSON array. Example:\n\n[\n  {\n    \"stage\": \"Discovery\",\n    \"suggestion\": \"Great! By the way, what kind of project are you working on right now? Are you building something new or improving an existing one?\",\n    \"reason\": \"Shifts from small talk to a business-focused question and helps qualify the lead.\"\n  }\n]\n\nGuide:\n${guide}`;
+        const systemPrompt = `
+You are a sales closing coach. Use the following guide to analyze the conversation and determine the current sales stage (e.g., Opening, Discovery, Objection Handling, Trial Close, Closing, etc.).
+
+1. Identify the current stage of the conversation, based on the guide and the messages so far.
+2. Suggest 3 different DM (direct message) choices for the user to select from, all relevant to the current stage. If appropriate, one or more suggestions can propose moving to the next stage.
+3. For each suggestion, provide:
+   - stage: The sales stage this DM is for (string)
+   - suggestion: The DM to send (string)
+   - reason: Explanation for your choice (string)
+
+Reply ONLY in valid JSON as an array of objects with keys: stage, suggestion, reason. Do NOT include any markdown, code blocks, or extra commentary.
+
+Example:
+[
+  {
+    "stage": "Discovery",
+    "suggestion": "Thanks for sharing more about your project! Can you tell me what your main goal is for this year?",
+    "reason": "The conversation is still in the information-gathering phase, so asking about goals helps qualify the lead and move toward a solution."
+  },
+  {
+    "stage": "Discovery",
+    "suggestion": "What challenges have you faced so far in this area?",
+    "reason": "This helps uncover pain points and shows empathy."
+  },
+  {
+    "stage": "Trial Close",
+    "suggestion": "Would you like to see a quick demo of how I can help?",
+    "reason": "If the lead seems ready, this moves the conversation toward the next stage."
+  }
+]
+
+Guide:
+${guide}
+`;
         const messages = [
             { role: 'system', content: systemPrompt },
             { role: 'user', content: JSON.stringify(conversation) }
@@ -92,7 +125,7 @@ function createSidePanel() {
     panel.id = 'closing-coach-panel';
     panel.style.cssText = `
         position: fixed;
-        top: 20px;
+        top: 50px;
         right: 20px;
         width: 350px;
         max-height: 600px;
@@ -106,13 +139,15 @@ function createSidePanel() {
     `;
     
     panel.innerHTML = `
-        <div style="
+        <div id="closing-coach-header" style="
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 16px;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            cursor: move;
+            user-select: none;
         ">
             <div>
                 <h3 style="margin: 0; font-size: 16px; font-weight: 600;">🤖 Closing Coach</h3>
@@ -171,6 +206,9 @@ function createSidePanel() {
     
     document.body.appendChild(panel);
     
+    // Make the panel draggable
+    makePanelDraggable(panel, document.getElementById('closing-coach-header'));
+    
     // Add event listeners
     setupPanelEvents();
     
@@ -224,7 +262,7 @@ function analyzeConversation() {
 
                 <details style="margin-top: 12px;">
                     <summary style="font-weight: 600; cursor: pointer; font-size: 13px; color: #667eea; user-select: none;">
-                        View Scraped Messages
+                        View Fetched Messages
                     </summary>
                     <div style="margin-top: 8px; max-height: 150px; overflow-y: auto; background: #fff; border-radius: 6px; padding: 8px; border: 1px solid #e1e5e9;">
                         ${messagesHtml}
@@ -407,4 +445,42 @@ function initializeExtension() {
 
 // Start the extension
 initializeExtension();
+
+// Add this helper function after createSidePanel
+function makePanelDraggable(panel, handle) {
+    let isDragging = false;
+    let startX, startY, startLeft, startTop;
+
+    // Set initial position (top-right, but using left for easier dragging)
+    panel.style.left = (window.innerWidth - panel.offsetWidth - 20) + 'px';
+    panel.style.top = '50px';
+    panel.style.right = '';
+
+    handle.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        startX = e.clientX;
+        startY = e.clientY;
+        startLeft = parseInt(panel.style.left, 10);
+        startTop = parseInt(panel.style.top, 10);
+        document.body.style.userSelect = 'none';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - startX;
+        const dy = e.clientY - startY;
+        let newLeft = startLeft + dx;
+        let newTop = startTop + dy;
+        // Constrain within viewport
+        newLeft = Math.max(0, Math.min(newLeft, window.innerWidth - panel.offsetWidth));
+        newTop = Math.max(0, Math.min(newTop, window.innerHeight - panel.offsetHeight));
+        panel.style.left = newLeft + 'px';
+        panel.style.top = newTop + 'px';
+    });
+
+    document.addEventListener('mouseup', () => {
+        isDragging = false;
+        document.body.style.userSelect = '';
+    });
+}
 
