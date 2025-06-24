@@ -129,7 +129,7 @@ function createSidePanel() {
             ">✕</button>
         </div>
         
-        <div style="padding: 16px;">
+        <div style="padding: 16px; overflow-y: auto; max-height: 540px;">
             <div style="margin-bottom: 16px;">
                 <button id="get-suggestions-btn" style="
                     width: 100%;
@@ -146,22 +146,6 @@ function createSidePanel() {
                     🔍 Get Suggestions
                 </button>
             </div>
-            <div style="margin-bottom: 16px;">
-                <button id="test-deepseek-btn" style="
-                    width: 100%;
-                    background: #28a745;
-                    color: white;
-                    border: none;
-                    border-radius: 8px;
-                    padding: 12px;
-                    font-size: 14px;
-                    font-weight: 600;
-                    cursor: pointer;
-                    transition: background 0.2s;
-                ">
-                    🧪 Test DeepSeek API
-                </button>
-            </div>
             
             <div id="conversation-info" style="
                 background: #f8f9fa;
@@ -176,8 +160,7 @@ function createSidePanel() {
             </div>
             
             <div id="suggestions-container" style="
-                max-height: 300px;
-                overflow-y: auto;
+                padding-bottom: 32px;
             ">
                 <div style="text-align: center; color: #6c757d; font-size: 13px; padding: 20px;">
                     No suggestions yet.<br>Start by analyzing the conversation!
@@ -204,11 +187,6 @@ function setupPanelEvents() {
     // Get suggestions button
     document.getElementById('get-suggestions-btn').addEventListener('click', () => {
         analyzeConversation();
-    });
-    
-    // Test DeepSeek API button
-    document.getElementById('test-deepseek-btn').addEventListener('click', () => {
-        testDeepSeekAPI();
     });
 }
 
@@ -430,31 +408,3 @@ function initializeExtension() {
 // Start the extension
 initializeExtension();
 
-// Add a test function for DeepSeek API
-async function testDeepSeekAPI() {
-    const testPrompt = [
-        { role: 'system', content: 'You are a helpful assistant.' },
-        { role: 'user', content: 'Say hello GUANG. and tell me todays news' }
-    ];
-    try {
-        const response = await fetch(DEEPSEEK_API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
-            },
-            body: JSON.stringify({
-                model: 'deepseek-chat',
-                messages: testPrompt,
-                max_tokens: 50,
-                temperature: 0.2
-            })
-        });
-        const data = await response.json();
-        console.log('DeepSeek Hello World Test Response:', data);
-        alert('DeepSeek Test Response: ' + (data.choices?.[0]?.message?.content || JSON.stringify(data)));
-    } catch (error) {
-        console.error('DeepSeek Hello World Test Error:', error);
-        alert('DeepSeek Test Error: ' + error.message);
-    }
-}

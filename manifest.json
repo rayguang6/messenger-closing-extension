@@ -26,7 +26,10 @@
     ],
     
     "action": {
-      "default_title": "Facebook Chat AI Assistant",
-      "default_popup": "popup.html"
+      "default_title": "Facebook Chat AI Assistant"
+    },
+
+    "background": {
+      "service_worker": "background.js"
     }
   }
