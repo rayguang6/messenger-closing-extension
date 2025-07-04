@@ -3,50 +3,69 @@ console.log('🤖 Facebook Chat AI Assistant loaded!');
 
 // DeepSeek API integration
 // NOTE: Chrome extensions do not support .env files. Store secrets securely, e.g., chrome.storage or prompt user for API key in settings.
-const DEEPSEEK_API_KEY = 'sk-c79b321aec774d018f0c055f6ea4606d'; // TODO: Secure this key
+// For basic obfuscation, do not assign the API key directly. Instead, use a function that joins fragments.
+function getApiKey() {
+    // Example: split in non-obvious places
+    const part1 = 'sk-c79b3';
+    const part2 = '21aec774d018f0c0';
+    const part3 = '55f6ea4606d';
+    return part1 + part2 + part3;
+}
+// Usage: getApiKey()
+// NOTE: This is only basic obfuscation and does NOT provide real security.
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 
-async function callDeepSeekAPI(conversation, guide) {
+// Add this at the top level, outside any function
+let loadingMsgInterval = null;
+
+// Helper: format conversation as readable chat transcript
+function formatConversationAsTranscript(messages) {
+    return messages.map(m => `${m.sender}: ${m.message}`).join('\n');
+}
+
+async function callDeepSeekAPI(conversation, guide, context = '') {
     try {
-        // Improved system prompt: extra guard rails against Markdown/code blocks
+        // Do NOT trim or limit the conversation; send all scraped messages
+        const transcript = formatConversationAsTranscript(conversation);
         const systemPrompt = `
-You are a sales closing coach. Use the following guide to analyze the conversation and determine the current sales stage (e.g., Opening, Discovery, Objection Handling, Trial Close, Closing, etc.).
+You are an expert sales coach specializing in closing web design and digital marketing deals via Facebook Messenger.
 
-1. Identify the current stage of the conversation, based on the guide and the messages so far.
-2. Suggest 3 different DM (direct message) choices for the user to select from, all relevant to the current stage. If appropriate, one or more suggestions can propose moving to the next stage.
-3. For each suggestion, provide:
-   - stage: The sales stage this DM is for (string)
-   - suggestion: The DM to send (string)
-   - reason: Explanation for your choice (string)
+Analyze the conversation and suggest 3 strategic reply options. For each suggestion, provide:
+- stage: The current sales stage (Opening, Discovery, Trial Close, Objection Handling, Close)
+- suggestion: The exact reply text to send (natural, human, not robotic)
+- reason: An object with two keys:
+    - en: Brief explanation in English of why this approach works (clear and concise)
+    - zh: Friendly, conversational explanation in Chinese, as if you’re a Malaysian sales mentor talking to a friend. Use simple, natural language, and add a bit of local flavor or encouragement (e.g., “这样做比较容易拉近关系啦！”). Avoid robotic or overly formal language.
 
-Reply ONLY in valid JSON as an array of objects with keys: stage, suggestion, reason. Do NOT include any markdown, code blocks, or extra commentary.
+Key principles:
+- Always end with questions to keep the conversation flowing
+- Use "magic questions" (answer questions with questions) when unclear
+- Build rapport before closing
+- Match the conversation stage
+- Sound natural and human, never robotic or pushy
 
+Respond ONLY in valid JSON format as an array of objects with keys: stage, suggestion, reason (reason must be an object with en and zh). Do NOT include any markdown, code blocks, or extra commentary.
 Example:
 [
   {
     "stage": "Discovery",
-    "suggestion": "Thanks for sharing more about your project! Can you tell me what your main goal is for this year?",
-    "reason": "The conversation is still in the information-gathering phase, so asking about goals helps qualify the lead and move toward a solution."
-  },
-  {
-    "stage": "Discovery",
-    "suggestion": "What challenges have you faced so far in this area?",
-    "reason": "This helps uncover pain points and shows empathy."
-  },
-  {
-    "stage": "Trial Close",
-    "suggestion": "Would you like to see a quick demo of how I can help?",
-    "reason": "If the lead seems ready, this moves the conversation toward the next stage."
+    "suggestion": "Can you share a bit about your offer and what you're selling?",
+    "reason": {
+      "en": "Opens discovery phase by asking about their business to understand their needs.",
+      "zh": "这样问可以让对方更放松地介绍自己啦，也比较容易聊下去。像我们大马人这样聊天，气氛会比较轻松。"
+    }
   }
 ]
-
 Guide:
 ${guide}
 `;
         const messages = [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: JSON.stringify(conversation) }
         ];
+        if (context && context.length > 0) {
+            messages.push({ role: 'user', content: '[Context] ' + context });
+        }
+        messages.push({ role: 'user', content: transcript });
         const payload = {
             model: 'deepseek-chat',
             messages,
@@ -58,30 +77,40 @@ ${guide}
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${DEEPSEEK_API_KEY}`
+                'Authorization': `Bearer ${getApiKey()}`
             },
             body: JSON.stringify(payload)
         });
+        if (!response.ok) {
+            const text = await response.text();
+            console.error('DeepSeek API HTTP Error:', response.status, text);
+            return { error: 'http', status: response.status, statusText: response.statusText };
+        }
         const data = await response.json();
         console.log('DeepSeek API Raw Response:', data);
-        // Try to extract JSON block from LLM response
         let content = data.choices?.[0]?.message?.content || '';
+        if (!content) {
+            return { error: 'no_content' };
+        }
         // Remove Markdown code block if present
         const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
         if (codeBlockMatch) {
             content = codeBlockMatch[1];
         }
-        // Remove any leading/trailing whitespace
         content = content.trim();
         try {
-            return JSON.parse(content);
+            const parsed = JSON.parse(content);
+            if (!Array.isArray(parsed) || parsed.length === 0) {
+                return { error: 'empty_array' };
+            }
+            return parsed;
         } catch (err) {
-            console.warn('DeepSeek response not valid JSON. Raw content:', content);
-            return { error: 'parse', raw: content };
+            console.warn('DeepSeek response not valid JSON. Raw content:', content, err);
+            return { error: 'parse' };
         }
     } catch (error) {
-        console.error('DeepSeek API Error:', error);
-        return { error: 'exception', details: error?.message || error };
+        console.error('DeepSeek API Exception:', error);
+        return { error: 'exception' };
     }
 }
 
@@ -165,6 +194,10 @@ function createSidePanel() {
         </div>
         
         <div style="padding: 16px; overflow-y: auto; max-height: 540px;">
+            <div style="margin-bottom: 10px;">
+                <label for="context-input" style="font-size:13px;color:#764ba2;font-weight:600;">Context (optional):</label>
+                <textarea id="context-input" rows="2" placeholder="Add any extra context for the AI..." style="width:100%;margin-top:4px;margin-bottom:10px;padding:6px 8px;border-radius:6px;border:1px solid #e1e5e9;font-size:13px;resize:vertical;"></textarea>
+            </div>
             <div style="margin-bottom: 16px;">
                 <button id="get-suggestions-btn" style="
                     width: 100%;
@@ -219,17 +252,23 @@ function createSidePanel() {
 function setupPanelEvents() {
     // Close panel button
     document.getElementById('close-panel').addEventListener('click', () => {
+        // Clear any running intervals when closing panel
+        if (loadingMsgInterval) {
+            clearInterval(loadingMsgInterval);
+            loadingMsgInterval = null;
+        }
         document.getElementById('closing-coach-panel').remove();
     });
     
     // Get suggestions button
     document.getElementById('get-suggestions-btn').addEventListener('click', () => {
-        analyzeConversation();
+        const context = document.getElementById('context-input').value.trim();
+        analyzeConversation(context);
     });
 }
 
 // Updated analyzeConversation function with better error handling
-function analyzeConversation() {
+function analyzeConversation(context = '') {
     const button = document.getElementById('get-suggestions-btn');
     const infoDiv = document.getElementById('conversation-info');
     const suggestionsContainer = document.getElementById('suggestions-container');
@@ -238,134 +277,278 @@ function analyzeConversation() {
     button.textContent = '🔄 Analyzing...';
     button.disabled = true;
     
+    // Animated/cycling loading messages with emoji
+    const loadingMessages = [
+      '🤖 Generating results, please wait...',
+      '🍳 Cooking up your suggestions...',
+      '🧠 Thinking like a sales pro...',
+      '🔍 Finding the best next move...',
+      '⏳ Almost there, preparing your DMs...',
+      '✨ AI is analyzing your chat magic...',
+      '🛠️ Sharpening those closing skills...',
+      '💡 Your sales coach is on it...',
+      '🚀 Making your next reply awesome...',
+      '💪 Letting the AI do the heavy lifting...'
+    ];
+    let loadingMsgIndex = 0;
+    
+    // Always clear any previous interval before starting a new one
+    if (loadingMsgInterval) {
+        clearInterval(loadingMsgInterval);
+        loadingMsgInterval = null;
+    }
+    
+    // Show animated progress indicator and skeleton loading cards
+    suggestionsContainer.innerHTML = `
+      <div id="dynamic-loading-message" style="display: flex; flex-direction: column; align-items: center; margin-bottom: 16px;">
+        <div class="bouncing-dots-loader">
+          <span></span><span></span><span></span>
+        </div>
+        <div id="loading-msg-text" style="font-size: 14px; color: #764ba2; margin-top: 8px; font-weight: 500; letter-spacing: 0.2px;">${loadingMessages[0]}</div>
+      </div>
+      <div class="skeleton-card shimmer"></div>
+      <div class="skeleton-card shimmer"></div>
+      <div class="skeleton-card shimmer"></div>
+      <style>
+        .skeleton-card {
+          background: #f0f0f0;
+          border-radius: 8px;
+          height: 60px;
+          margin-bottom: 12px;
+          position: relative;
+          overflow: hidden;
+        }
+        .shimmer::after {
+          content: '';
+          position: absolute;
+          top: 0; left: -60%;
+          width: 60%; height: 100%;
+          background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.4) 50%, rgba(255,255,255,0) 100%);
+          animation: shimmer-move 1.2s infinite;
+        }
+        @keyframes shimmer-move {
+          100% { left: 100%; }
+        }
+        @keyframes pulse {
+          0% { opacity: 1; }
+          50% { opacity: 0.5; }
+          100% { opacity: 1; }
+        }
+        .bouncing-dots-loader {
+          display: flex;
+          align-items: flex-end;
+          height: 18px;
+        }
+        .bouncing-dots-loader span {
+          display: inline-block;
+          width: 8px;
+          height: 8px;
+          margin: 0 2px;
+          background: #764ba2;
+          border-radius: 50%;
+          animation: bounce 0.6s infinite alternate;
+        }
+        .bouncing-dots-loader span:nth-child(2) {
+          animation-delay: 0.12s;
+        }
+        .bouncing-dots-loader span:nth-child(3) {
+          animation-delay: 0.24s;
+        }
+        @keyframes bounce {
+          0% { transform: translateY(0); }
+          100% { transform: translateY(-10px); }
+        }
+      </style>
+    `;
+    
+    // Start cycling loading messages
+    loadingMsgInterval = setInterval(() => {
+      loadingMsgIndex = (loadingMsgIndex + 1) % loadingMessages.length;
+      const msgEl = document.getElementById('loading-msg-text');
+      if (msgEl) msgEl.textContent = loadingMessages[loadingMsgIndex];
+    }, 1200);
+    
     // Get messages
     const messages = scrapeMessagesWithContext();
     
+    // Helper function to clear loading and reset button
+    const clearLoadingState = () => {
+        if (loadingMsgInterval) {
+            clearInterval(loadingMsgInterval);
+            loadingMsgInterval = null;
+        }
+        button.textContent = '🔍 Get Suggestions';
+        button.disabled = false;
+    };
+    
     setTimeout(async () => {
-        if (messages.length > 0) {
-            // Update conversation info
-            const userMessages = messages.filter(m => m.isUser).length;
-            const otherMessages = messages.length - userMessages;
-            
-            const messagesHtml = messages.map(m => `
-                <div style="padding: 4px 0; border-bottom: 1px solid #f1f3f5; font-size: 12px; word-wrap: break-word;">
-                    <strong style="color: ${m.isUser ? '#667eea' : '#764ba2'};">${m.sender}:</strong> ${m.message}
-                </div>
-            `).join('');
-
-            infoDiv.innerHTML = `
-                <strong>📊 Conversation Analysis:</strong><br>
-                • Total messages: ${messages.length}<br>
-                • Your messages: ${userMessages}<br>
-                • Their messages: ${otherMessages}<br>
-                • Last sender: ${messages[messages.length - 1].sender}
-
-                <details style="margin-top: 12px;">
-                    <summary style="font-weight: 600; cursor: pointer; font-size: 13px; color: #667eea; user-select: none;">
-                        View Fetched Messages
-                    </summary>
-                    <div style="margin-top: 8px; max-height: 150px; overflow-y: auto; background: #fff; border-radius: 6px; padding: 8px; border: 1px solid #e1e5e9;">
-                        ${messagesHtml}
-                    </div>
-                </details>
-            `;
-            
-            // Call DeepSeek API for suggestions
-            suggestionsContainer.innerHTML = '<div style="text-align:center;color:#6c757d;font-size:13px;padding:20px;">🤖 Generating AI suggestions...</div>';
-            
-            try {
-                const aiResponse = await callDeepSeekAPI(messages, window.CLOSING_GUIDE || 'Default sales guide');
+        try {
+            if (messages.length > 0) {
+                // Update conversation info
+                const userMessages = messages.filter(m => m.isUser).length;
+                const otherMessages = messages.length - userMessages;
                 
-                if (aiResponse && Array.isArray(aiResponse)) {
-                    // Success case - display suggestions
+                const messagesHtml = messages.map(m => `
+                    <div style="padding: 4px 0; border-bottom: 1px solid #f1f3f5; font-size: 12px; word-wrap: break-word;">
+                        <strong style="color: ${m.isUser ? '#667eea' : '#764ba2'};">${m.sender}:</strong> ${m.message}
+                    </div>
+                `).join('');
+                
+                infoDiv.innerHTML = `
+                    <strong>📊 Conversation Analysis:</strong><br>
+                    • Total messages: ${messages.length}<br>
+                    • Your messages: ${userMessages}<br>
+                    • Their messages: ${otherMessages}<br>
+                    • Last sender: ${messages[messages.length - 1].sender}
+                    <details style="margin-top: 12px;">
+                        <summary style="font-weight: 600; cursor: pointer; font-size: 13px; color: #667eea; user-select: none;">
+                            View Fetched Messages
+                        </summary>
+                        <div style="margin-top: 8px; max-height: 150px; overflow-y: auto; background: #fff; border-radius: 6px; padding: 8px; border: 1px solid #e1e5e9;">
+                            ${messagesHtml}
+                        </div>
+                    </details>
+                `;
+                
+                // Call DeepSeek API for suggestions
+                const aiResponse = await callDeepSeekAPI(messages, window.CLOSING_GUIDE || 'Default sales guide', context);
+                
+                if (aiResponse && Array.isArray(aiResponse) && aiResponse.length > 0) {
                     displaySuggestions(aiResponse, suggestionsContainer);
-                } else if (aiResponse && aiResponse.fallback) {
-                    // Fallback case - show fallback suggestions with error info
-                    console.warn('Using fallback suggestions:', aiResponse);
-                    displaySuggestions(aiResponse.fallback, suggestionsContainer);
-                    
-                    // Show debug info
-                    if (aiResponse.raw) {
-                        suggestionsContainer.innerHTML = `
-                            <div style="background:#fff3cd;border:1px solid #ffeaa7;border-radius:8px;padding:12px;margin-bottom:12px;font-size:12px;">
-                                <strong>⚠️ JSON Parsing Issue</strong><br>
-                                Raw AI response: <code style="font-size:11px;background:#f8f9fa;padding:2px 4px;border-radius:3px;">${aiResponse.raw.substring(0, 200)}...</code>
-                            </div>
-                        ` + suggestionsContainer.innerHTML;
-                    }
                 } else {
-                    // Complete failure case
+                    // User-friendly error messages only
+                    let errorMsg = '<strong>❌ AI Request Failed</strong><br>';
+                    if (aiResponse && aiResponse.error) {
+                        switch (aiResponse.error) {
+                            case 'http':
+                                errorMsg += 'A network or server error occurred.';
+                                break;
+                            case 'no_content':
+                                errorMsg += 'No content returned from AI.';
+                                break;
+                            case 'empty_array':
+                                errorMsg += 'No suggestions found for this conversation.';
+                                break;
+                            case 'parse':
+                                errorMsg += 'AI response could not be understood.';
+                                break;
+                            case 'exception':
+                                errorMsg += 'An unexpected error occurred.';
+                                break;
+                            default:
+                                errorMsg += 'Unknown error.';
+                        }
+                    } else {
+                        errorMsg += 'Unknown error or no response.';
+                    }
                     suggestionsContainer.innerHTML = `
-                        <div style="text-align:center;color:#dc3545;font-size:13px;padding:20px;">
-                            <strong>❌ AI Request Failed</strong><br>
-                            ${aiResponse?.message || 'Unknown error occurred'}<br>
-                            <small>Check console for details</small>
+                        <div style=\"text-align:center;color:#dc3545;font-size:13px;padding:20px;\">
+                            ${errorMsg}<br>
+                            <button id=\"try-again-btn\" style=\"margin-top:12px;background:#667eea;color:white;border:none;border-radius:6px;padding:8px 16px;font-size:13px;cursor:pointer;\">🔄 Try Again</button>
                         </div>
                     `;
+                    // Add Try Again button handler
+                    const tryAgainBtn = document.getElementById('try-again-btn');
+                    if (tryAgainBtn) {
+                        tryAgainBtn.addEventListener('click', () => {
+                            analyzeConversation(context);
+                        });
+                    }
                 }
-                
-            } catch (error) {
-                console.error('Unexpected error in analyzeConversation:', error);
+            } else {
+                infoDiv.innerHTML = `
+                    <strong>⚠️ No Messages Found</strong><br>
+                    Make sure you're in a chat conversation and try again.
+                `;
                 suggestionsContainer.innerHTML = `
-                    <div style="text-align:center;color:#dc3545;font-size:13px;padding:20px;">
-                        <strong>💥 Unexpected Error</strong><br>
-                        ${error.message}<br>
-                        <small>Check console for full details</small>
+                    <div style=\"text-align: center; color: #dc3545; font-size: 13px; padding: 20px;\">
+                        No conversation detected.<br>
+                        Open a chat and try again.
                     </div>
                 `;
             }
-            
-        } else {
-            infoDiv.innerHTML = `
-                <strong>⚠️ No Messages Found</strong><br>
-                Make sure you're in a chat conversation and try again.
-            `;
+        } catch (error) {
+            console.error('Unexpected error in analyzeConversation:', error);
             suggestionsContainer.innerHTML = `
-                <div style="text-align: center; color: #dc3545; font-size: 13px; padding: 20px;">
-                    No conversation detected.<br>
-                    Open a chat and try again.
+                <div style=\"text-align:center;color:#dc3545;font-size:13px;padding:20px;\">
+                    <strong>💥 Unexpected Error</strong><br>
+                    Something went wrong. Please try again.<br>
+                    <button id=\"try-again-btn\" style=\"margin-top:12px;background:#667eea;color:white;border:none;border-radius:6px;padding:8px 16px;font-size:13px;cursor:pointer;\">🔄 Try Again</button>
                 </div>
             `;
+            // Add Try Again button handler
+            const tryAgainBtn = document.getElementById('try-again-btn');
+            if (tryAgainBtn) {
+                tryAgainBtn.addEventListener('click', () => {
+                    analyzeConversation(context);
+                });
+            }
+        } finally {
+            clearLoadingState();
         }
-        
-        // Reset button
-        button.textContent = '🔍 Get Suggestions';
-        button.disabled = false;
-        
     }, 1000);
 }
 
 // Helper function to display suggestions
 function displaySuggestions(suggestions, container) {
-    const suggestionsHtml = suggestions.map((s, index) => `
-        <div style="background:#f8f9fa;border:1px solid #e9ecef;border-radius:8px;padding:12px;margin-bottom:12px;">
-            <div style="font-size:12px;color:#764ba2;font-weight:600;margin-bottom:4px;">
-                ${s.stage || `Suggestion ${index + 1}`}
-            </div>
-            <div style="font-size:13px;margin-bottom:8px;line-height:1.4;">
-                ${s.suggestion || 'No suggestion available'}
-            </div>
-            <div style="font-size:11px;color:#495057;opacity:0.8;margin-bottom:8px;">
-                💡 ${s.reason || 'No reason provided'}
-            </div>
+    const suggestionsHtml = suggestions.map((s, index) => {
+        let reasonHtml = '';
+        if (typeof s.reason === 'object' && s.reason !== null) {
+            reasonHtml = `
+                <div style="border-top:1px solid #e1e5e9;margin-top:12px;padding-top:10px;background:#f6f8fa;border-radius:0 0 8px 8px;">
+                    <div style="font-size:12px;font-weight:600;color:#764ba2;margin-bottom:4px;display:flex;align-items:center;gap:6px;">
+                        🧠 Why this works
+                        <span style="font-size:11px;font-weight:400;color:#888;">(for your learning, not for copying)</span>
+                    </div>
+                    <div style="font-size:14px;color:#333;margin-bottom:2px;">
+                        ${s.reason.en || ''}
+                    </div>
+                    <div style="font-size:14px;color:#333;">
+                        ${s.reason.zh || ''}
+                    </div>
+                </div>
+            `;
+        } else {
+            reasonHtml = `<div style="border-top:1px solid #e1e5e9;margin-top:12px;padding-top:10px;background:#f6f8fa;border-radius:0 0 8px 8px;">
+                <div style="font-size:12px;font-weight:600;color:#764ba2;margin-bottom:4px;display:flex;align-items:center;gap:6px;">
+                    🧠 Why this works
+                    <span style="font-size:11px;font-weight:400;color:#888;">(for your learning, not for copying)</span>
+                </div>
+                <div style="font-size:13px;color:#333;">${s.reason || 'No reason provided'}</div>
+            </div>`;
+        }
+        return `
+        <div style="position:relative;background:#f8f9fa;border:1px solid #e9ecef;border-radius:8px;padding:18px 16px 10px 16px;margin-bottom:18px;box-shadow:0 2px 8px rgba(102,126,234,0.04);">
             <button 
                 class="copy-btn" 
                 data-text="${(s.suggestion || '').replace(/"/g, '&quot;')}"
+                title="Copy reply"
                 style="
-                    background:#28a745;
-                    color:white;
+                    position:absolute;top:12px;right:12px;
+                    background:#e1e5e9;
+                    color:#667eea;
                     border:none;
                     border-radius:4px;
-                    padding:4px 8px;
-                    font-size:11px;
+                    padding:4px 10px;
+                    font-size:13px;
                     cursor:pointer;
                     transition:background 0.2s;
+                    font-weight:600;
+                    z-index:2;
                 "
             >
                 📋 Copy
             </button>
+            <div style="font-size:13px;color:#764ba2;font-weight:600;margin-bottom:6px;">
+                ${s.stage || `Suggestion ${index + 1}`}
+            </div>
+            <div style="font-size:16px;font-weight:600;margin-bottom:10px;line-height:1.5;color:#222;">
+                ${s.suggestion || 'No suggestion available'}
+            </div>
+            ${reasonHtml}
         </div>
-    `).join('');
+        `;
+    }).join('');
     
     container.innerHTML = suggestionsHtml;
     
@@ -376,10 +559,8 @@ function displaySuggestions(suggestions, container) {
             if (text && text !== '') {
                 navigator.clipboard.writeText(text).then(() => {
                     btn.textContent = '✅ Copied!';
-                    btn.style.background = '#6c757d';
                     setTimeout(() => {
                         btn.textContent = '📋 Copy';
-                        btn.style.background = '#28a745';
                     }, 2000);
                 }).catch(err => {
                     console.error('Copy failed:', err);
@@ -406,6 +587,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         case 'hidePanel':
             const panel = document.getElementById('closing-coach-panel');
             if (panel) {
+                // Clear any running intervals when hiding panel
+                if (loadingMsgInterval) {
+                    clearInterval(loadingMsgInterval);
+                    loadingMsgInterval = null;
+                }
                 panel.remove();
                 sendResponse({ success: true, message: 'Panel hidden' });
             } else {
@@ -414,6 +600,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             break;
             
         case 'refresh':
+            // Clear any running intervals
+            if (loadingMsgInterval) {
+                clearInterval(loadingMsgInterval);
+                loadingMsgInterval = null;
+            }
             // Remove existing panel and recreate
             const existingPanel = document.getElementById('closing-coach-panel');
             if (existingPanel) {
@@ -443,19 +634,16 @@ function initializeExtension() {
     }
 }
 
-// Start the extension
-initializeExtension();
-
 // Add this helper function after createSidePanel
 function makePanelDraggable(panel, handle) {
     let isDragging = false;
     let startX, startY, startLeft, startTop;
-
+    
     // Set initial position (top-right, but using left for easier dragging)
     panel.style.left = (window.innerWidth - panel.offsetWidth - 20) + 'px';
     panel.style.top = '50px';
     panel.style.right = '';
-
+    
     handle.addEventListener('mousedown', (e) => {
         isDragging = true;
         startX = e.clientX;
@@ -464,23 +652,27 @@ function makePanelDraggable(panel, handle) {
         startTop = parseInt(panel.style.top, 10);
         document.body.style.userSelect = 'none';
     });
-
+    
     document.addEventListener('mousemove', (e) => {
         if (!isDragging) return;
         const dx = e.clientX - startX;
         const dy = e.clientY - startY;
         let newLeft = startLeft + dx;
         let newTop = startTop + dy;
+        
         // Constrain within viewport
         newLeft = Math.max(0, Math.min(newLeft, window.innerWidth - panel.offsetWidth));
         newTop = Math.max(0, Math.min(newTop, window.innerHeight - panel.offsetHeight));
+        
         panel.style.left = newLeft + 'px';
         panel.style.top = newTop + 'px';
     });
-
+    
     document.addEventListener('mouseup', () => {
         isDragging = false;
         document.body.style.userSelect = '';
     });
 }
 
+// Start the extension
+initializeExtension();

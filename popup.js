@@ -103,6 +103,12 @@ function setupEventListeners() {
             document.getElementById('info-text').textContent = 'Extension refreshed successfully!';
         }, 1000);
     });
+
+    // Open Testing Panel button
+    document.getElementById('open-testing-btn').addEventListener('click', () => {
+        const url = chrome.runtime.getURL('testing/testing.html');
+        chrome.tabs.create({ url });
+    });
 }
 
 // Initialize popup

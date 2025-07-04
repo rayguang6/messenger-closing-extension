@@ -1,0 +1,1315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Reply Suggestions - Fast Testing</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f6fa;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: white;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 12px;
+        }
+
+        .config-toggle {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .config-toggle:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .config-toggle.active {
+            background: white;
+            color: #667eea;
+        }
+
+        .main-content {
+            flex: 1;
+            display: flex;
+            height: calc(100vh - 64px);
+            overflow: hidden;
+        }
+
+        .left-panel {
+            width: 50%;
+            padding: 24px;
+            border-right: 1px solid #e1e5e9;
+            background: #fafbfc;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .right-panel {
+            width: 50%;
+            padding: 24px;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .section-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 16px;
+            color: #333;
+        }
+
+        .chat-box {
+            flex: 1;
+            border: 2px solid #e1e5e9;
+            border-radius: 12px;
+            background: white;
+            overflow-y: auto;
+            padding: 16px;
+            margin-bottom: 16px;
+            min-height: 200px;
+        }
+
+        .message {
+            margin-bottom: 16px;
+            display: flex;
+            align-items: flex-start;
+        }
+
+        .message.client {
+            justify-content: flex-start;
+        }
+
+        .message.freelancer {
+            justify-content: flex-end;
+        }
+
+        .message-bubble {
+            max-width: 75%;
+            padding: 12px 16px;
+            border-radius: 16px;
+            font-size: 14px;
+            line-height: 1.4;
+            word-wrap: break-word;
+        }
+
+        .message.client .message-bubble {
+            background: #e9ecef;
+            color: #333;
+            border-bottom-left-radius: 4px;
+        }
+
+        .message.freelancer .message-bubble {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .chat-input {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .chat-input select {
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            background: white;
+            min-width: 80px;
+        }
+
+        .chat-input input {
+            flex: 1;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #e9ecef;
+            color: #495057;
+        }
+
+        .btn:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .context-section {
+            margin-top: 16px;
+        }
+
+        .context-input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            resize: vertical;
+            min-height: 80px;
+            max-height: 120px;
+        }
+
+        .generate-section {
+            margin-bottom: 20px;
+        }
+
+        .generate-btn {
+            width: 100%;
+            padding: 16px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .generate-btn:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(102, 126, 234, 0.3);
+        }
+
+        .suggestions-area {
+            flex: 1;
+            overflow-y: auto;
+            border: 1px solid #e1e5e9;
+            border-radius: 12px;
+            padding: 16px;
+            background: #f8f9fa;
+        }
+
+        .suggestion-card {
+            background: white;
+            border: 1px solid #e1e5e9;
+            border-radius: 12px;
+            padding: 18px;
+            margin-bottom: 16px;
+            transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+
+        .suggestion-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+        }
+
+        .suggestion-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .suggestion-stage {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 16px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .copy-btn {
+            padding: 6px 12px;
+            font-size: 12px;
+            background: #f1f3f4;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .copy-btn:hover {
+            background: #e9ecef;
+        }
+
+        .suggestion-text {
+            font-size: 15px;
+            color: #333;
+            margin-bottom: 12px;
+            line-height: 1.5;
+            padding: 14px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .suggestion-reason {
+            font-size: 13px;
+            color: #666;
+            font-style: italic;
+            line-height: 1.4;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+        }
+
+        .error {
+            background: #fee;
+            border: 1px solid #fcc;
+            color: #c33;
+            padding: 16px;
+            border-radius: 8px;
+            margin: 16px 0;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        /* Configuration Panel */
+        .config-panel {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+        }
+
+        .config-panel.active {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .config-content {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 800px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .config-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+
+        .config-header h2 {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .close-btn {
+            background: #e9ecef;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .config-item {
+            margin-bottom: 24px;
+        }
+
+        .config-item h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+
+        .config-item textarea {
+            width: 100%;
+            height: 150px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 13px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            resize: vertical;
+            background: #f8f9fa;
+        }
+
+        .config-item input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .param-group {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .param-item {
+            flex: 1;
+        }
+
+        .param-item label {
+            display: block;
+            margin-bottom: 4px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .range-input {
+            width: 100%;
+        }
+
+        .range-value {
+            background: #667eea;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        @media (max-width: 1024px) {
+            .main-content {
+                flex-direction: column;
+            }
+            
+            .left-panel, .right-panel {
+                width: 100%;
+                height: 50vh;
+            }
+            
+            .left-panel {
+                border-right: none;
+                border-bottom: 1px solid #e1e5e9;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 AI Reply Suggestions - Fast Testing</h1>
+            <div class="header-controls">
+                <button class="config-toggle" onclick="resetToDefaults()" style="background: rgba(255,255,255,0.1); margin-right: 8px;">🔄 Reset</button>
+                <button class="config-toggle" onclick="toggleConfig()">⚙️ Configuration</button>
+            </div>
+        </div>
+
+        <div class="main-content">
+            <!-- Left Panel - Chat -->
+            <div class="left-panel">
+                <div class="chat-section">
+                    <div class="section-title">💬 Conversation</div>
+                    <div class="chat-box" id="chatBox"></div>
+                    <div class="chat-input">
+                        <select id="senderSelect">
+                            <option value="client">Client</option>
+                            <option value="freelancer">You</option>
+                        </select>
+                        <input type="text" id="messageInput" placeholder="Type a message...">
+                        <button class="btn btn-primary" onclick="addMessage()">Add</button>
+                        <button class="btn btn-secondary" onclick="clearChat()">Clear</button>
+                    </div>
+                </div>
+                
+                <div class="context-section">
+                    <div class="section-title">📝 Context</div>
+                    <textarea class="context-input" id="contextInput" placeholder="Add context like budget, timeline, project details, etc.&#10;&#10;Example: Budget around $500, needs it in 2 weeks, mentioned they tried other freelancers before"></textarea>
+                </div>
+            </div>
+
+            <!-- Right Panel - Suggestions -->
+            <div class="right-panel">
+                <div class="generate-section">
+                    <button class="generate-btn" onclick="generateSuggestions()" id="generateBtn">
+                        🚀 Generate AI Suggestions
+                    </button>
+                </div>
+                
+                <div class="suggestions-area" id="suggestionsArea">
+                    <div class="empty-state">
+                        <p><strong>Ready to test!</strong></p>
+                        <p>Add some conversation messages on the left and click "Generate AI Suggestions" to see what the AI recommends.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Configuration Panel -->
+        <div class="config-panel" id="configPanel">
+            <div class="config-content">
+                <div class="config-header">
+                    <h2>⚙️ Configuration</h2>
+                    <button class="close-btn" onclick="toggleConfig()">✕ Close</button>
+                </div>
+
+                <div class="config-item">
+                    <h3>🤖 System Prompt</h3>
+                    <textarea id="systemPrompt" placeholder="System prompt for the AI..."></textarea>
+                </div>
+
+                <div class="config-item">
+                    <h3>📖 Closing Guide</h3>
+                    <textarea id="closingGuide" placeholder="Your closing guide content..."></textarea>
+                </div>
+
+                <div class="config-item">
+                    <h3>🎛️ AI Parameters</h3>
+                    <div class="param-group">
+                        <div class="param-item">
+                            <label>Temperature <span class="range-value" id="tempValue">0.7</span></label>
+                            <input type="range" id="temperature" class="range-input" min="0" max="1" step="0.1" value="0.7" oninput="updateTemp()">
+                        </div>
+                        <div class="param-item">
+                            <label>Max Tokens</label>
+                            <input type="number" id="maxTokens" value="800" min="100" max="2000">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="config-item">
+                    <h3>🧪 Test Mode</h3>
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer;">
+                        <input type="checkbox" id="testMode" style="margin: 0;">
+                        <span>Enable Test Mode (shows raw AI response, no JSON parsing)</span>
+                    </label>
+                </div>
+
+                <div class="config-item">
+                    <h3>🔍 Debug Mode</h3>
+                    <label style="display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer;">
+                        <input type="checkbox" id="debugMode" style="margin: 0;">
+                        <span>Show Full Prompt (see exactly what gets sent to AI)</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Default configurations
+        let config = {
+            apiKey: 'sk-c79b321aec774d018f0c055f6ea4606d',
+            systemPrompt: getFullSystemPrompt(),
+            closingGuide: getFullClosingGuide(),
+            temperature: 0.3,
+            maxTokens: 1000,
+            testMode: false,
+            debugMode: false
+        };
+
+        let conversation = [];
+
+        // Complete system prompt function
+        function getFullSystemPrompt() {
+            return `You are an expert freelancer sales coach specializing in closing web design and digital marketing deals via Facebook Messenger.
+
+ROLE & EXPERTISE:
+- Expert in international client acquisition (USA, Canada, Europe markets)
+- Specializes in web design, digital marketing, and funnel building services
+- Understands the psychology of online sales conversations
+- Experienced in handling objections and closing deals via chat
+
+CONVERSATION ANALYSIS TASK:
+Analyze the provided conversation and suggest 3 strategic reply options that will move the conversation forward toward a successful close.
+
+CORE PRINCIPLES TO FOLLOW:
+1. ALWAYS END WITH QUESTIONS - Never leave conversation hanging
+2. USE MAGIC QUESTIONS - Answer questions with questions when unclear ("What do you mean by that?")
+3. SOUND HUMAN, NOT AI - Talk to a REAL PERSON, be natural and conversational
+4. BUILD RAPPORT FIRST - Don't rush to close, establish trust
+5. MATCH CONVERSATION STAGE - Identify where they are in the sales process
+6. KEEP RESPONSES SHORT - Avoid long explanations, aim for quick replies
+7. USE "LET'S ASSUME IF..." - For conditional closes and overcoming hesitation
+8. OFFER VALUE EXCHANGES - Discounts for testimonials, trial projects, etc.
+
+SALES STAGES TO RECOGNIZE:
+- QUALIFICATION: Identifying if they're a good international client
+- OPENING: First impression, building initial interest
+- DISCOVERY: Understanding their needs, budget, timeline
+- TRIAL CLOSE: Testing readiness, creating momentum
+- OBJECTION HANDLING: Addressing concerns, clarifying misunderstandings
+- CLOSE: Securing payment and project agreement
+
+RESPONSE GUIDELINES:
+- Focus on the client's immediate concern or question
+- Use examples from the conversation context
+- Be specific and actionable
+- Show professionalism while remaining approachable
+- Address budget concerns with value exchanges
+- Handle objections by asking clarifying questions first
+
+PRICING APPROACH:
+- Standard web design: $500 (can discount to $200-300 for testimonials)
+- Payment terms: 50% upfront, 50% upon completion
+- PayPal/Wise for international clients
+- Offer trial projects for new relationships
+
+OBJECTION HANDLING TECHNIQUES:
+- Price concerns: Offer discounts in exchange for testimonials
+- Experience doubts: Propose small trial projects
+- Timing issues: Ask about their preferred timeline
+- Effectiveness concerns: Ask clarifying questions about their needs
+
+OUTPUT FORMAT:
+For each suggestion, provide:
+- stage: Current sales stage this suggestion addresses (Opening/Discovery/Trial Close/Objection Handling/Close)
+- suggestion: The exact reply text to send (keep it conversational and human)
+- reason: Brief explanation of why this approach works
+
+CRITICAL: Respond ONLY in valid JSON format as an array of objects with keys: stage, suggestion, reason.
+
+EXAMPLE OUTPUT:
+[
+  {
+    "stage": "Discovery",
+    "suggestion": "That sounds interesting! Can you share a bit about your offer and what you're selling?",
+    "reason": "Opens discovery phase by asking about their business to understand their needs"
+  },
+  {
+    "stage": "Trial Close",
+    "suggestion": "So when would you like this project to be completed?",
+    "reason": "Tests their readiness and creates momentum by assuming they want to proceed"
+  },
+  {
+    "stage": "Objection Handling",
+    "suggestion": "What do you mean by that? Are you looking for something more specific?",
+    "reason": "Magic question technique to clarify their concern and gather more information"
+  }
+]`;
+        }
+
+        // Complete closing guide function
+        function getFullClosingGuide() {
+            return `@How to Sell By Chat (DM)?
+There are 2 main ways to close deals in AI Agency. Here's a guideline for talking to clients to close deals via chat or DM, for more simple case.
+
+SALES PROCESS STAGES:
+1. QUALIFICATION - Identify international potential clients
+2. OPENING - Create positive first impression 
+3. DISCOVERY - Understand their needs
+4. TRIAL CLOSE - Assess readiness
+5. OBJECTION HANDLING - Address concerns
+6. CLOSE SALES - Secure the agreement
+
+Ultimate goals for sales process: You can either chat to close sales or set up an appointment (more complicated case) to finalize the deal.
+
+# A. Opening
+First steps, how to greet your client effectively? How to start the conversation smoothly?
+Goals: Create a positive first impression and build trust with new clients
+Priorities: Referral / From Facebook Group → New Online Chat → Follow Up
+
+Guidelines:
+1. Don't worry about your English—be confident and clear in your expression.
+2. Don't sound too AI, you are talking to a REAL PERSON, not a Robot!
+3. Keep the introduction SHORT and aim for a reply: don't waste too much time on irrelevant conversation.
+4. Asked open-ended questions, don't leave the conversation hanging.
+
+EXAMPLES:
+DM1: FROM REFERRAL
+YOU: Hi, I was referred to you by XXX. She/He mentioned you might be interested in our services. Are you looking to start a new project, or redesign existing funnel/pages?
+
+DM2: FROM FACEBOOK GROUP
+YOU: Hi! I noticed your interest in our [specific service] from the Facebook group. Have you found one yet?
+YOU: Hey xxx, happy to send over my portfolio. But before I do, let me know what type of funnel you're looking for so I can send a similar funnel and you can see kinda what that looks like
+
+DM3: FOLLOW UP
+YOU: Hello, How has everything been since we last spoke? Just wanted to follow up on our previous conversation.
+
+#A1. Qualifications
+Goals: Identify international potential clients
+Guidelines:
+1. Always check the leads' profile before accepting a request (Focused on the international ANGMO market, USA, Canada, Europe...)
+2. Make sure you have a good profile setup too
+3. Don't get too CLOSE: Maintain a professional distance from clients.
+4. If you're unsure of whether it is a good country, check their average fresh graduate salary on Google.
+5. Beware of those who offer unrealistic offer and ask for sensitive information before working together.
+
+Ways to identify:
+1. Profile information
+2. Social media behavior (friends, content, culture)
+3. Country
+4. Visual Cue in media (photos, videos, etc)
+5. Tonality/ Good Basic English Command
+
+EXAMPLE QUESTIONS:
+1. What are your primary goals for your business? (e.g., brand awareness, lead generation, etc)
+2. Just curious, where in the world are you messaging me? I'm from Malaysia.
+3. Who is your target audience?
+4. Can you tell me about your business and the products or services you offer?
+
+# B. Discovery Questions
+Second, how do you talk to clients to understand their needs? What are the best ways to politely ask for their information?
+Goals: Make sure goals and expectations are clear and match.
+Priorities: (Clarity of needs) Precise goals → Still developing goals → Open to inspiration
+
+Guidelines:
+1. You need to understand your client well first.
+2. Determine why they need your services: are they (i) starting a new business, (ii) rebranding/redesigning, or (iii) looking to improve their existing setup?
+3. Identify if the client already has a website or sales funnel, or if they have any prior experience with online business management, or new.
+4. Ask for sample or references
+5. Understand the client's budget and available resources.
+6. If the conversation becomes complicated, invite them for an online appointment (case > $1000 USD).
+7. ALWAYS END WITH A QUESTION, don't leave the convo hang
+8. Use a magic question when you face misunderstandings.
+
+EXAMPLES:
+DM1: ASKING NEEDS (GENERAL)
+YOU: I can help you with that. Can you share a bit about your offer and what are you selling?
+
+DM2: ASK FOR SAMPLE/ PREFERENCE
+YOU: Do you have any examples of websites you like or want for this project? Could you share the links with me?
+
+DM3: PLATFORM (WORDPRESS, AS, Systeme.io, GHL etc)
+YOU: Where do you want it built on?
+
+DM4: IF REDESIGN/ REVAMP PREVIOUS WEBSITE
+You: Can you share your current website or funnel link?
+YOU: Great, thank you. I've reviewed your website, and it looks like it has a solid foundation. However, I see opportunities to make it more modern and user-friendly. What specific goals do you have for this redesign?
+
+# C. Trial Close
+Goals: Assess readiness and create momentum for the final close
+Guidelines:
+1. Observe their interest, and avoid rushing the conversation. Don't rush.
+2. If they reject you, don't be discouraged. Stay open to negotiations and discussions.
+
+EXAMPLES:
+DM1: TIMELINE CLOSE
+YOU: So, when would you like the project to be completed?
+Answer: Next month. Is it possible?
+YOU: Perfect! I'll send over the project timeline and PayPal link for your review. Once we have that in place, we'll get started right away. I'm excited to help make your website launch successful!
+
+DM2: SUMMARY CONFIRMATION
+YOU: To ensure I have everything correct, you're looking for [X, Y, Z]. Did I capture that correctly?
+
+DM3: NEXT STEP
+YOU: If everything looks good, our next step will be to finalize the content. Does that work for you?
+
+DM4: SOFT ASSUMPTION
+YOU: Once we start, would you prefer regular weekly updates or bi-weekly check-ins?
+
+#D. Handling Objections
+It's normal to encounter objections, but don't panic—most can be resolved. What should you do when clients ask...?
+Goals: Clarifying misunderstandings and demonstrating your value
+Guidelines:
+1. Use data and testimonials to support your points.
+2. Listen, ask questions, and reply clearly and promptly.
+3. Remain positive and stay calm while handling objections. Be patient.
+4. Want to let them feel that doing it themselves can be challenging and time-consuming, and highlight the benefits of a proven system and expert guidance for faster, more effective results.
+5. MAGIC QUESTION: Answer a QUESTION with a QUESTION whenever you're unclear
+6. Use LET'S ASSUME IF
+
+EXAMPLES:
+DM1: CONCERN ABOUT PRICE
+Objection: The price seems too high.
+YOU: Normally, I charge $500, but for this project, I'll do it for $200. If you like my work, can you provide a testimonial in return? It would help me a lot!
+
+DM2: DOUBT ABOUT EFFECTIVENESS
+Objection: I'm not sure if this solution fits our needs.
+YOU: I understand your hesitation. Can you tell me more about what you're looking for?
+
+DM3: HESITATE TO START
+Objection: I don't have the time for this project right now.
+YOU: Ohh, when do you expect it to start?
+
+DM4: LACK OF EXPERIENCE
+Objection: You're new; do you have enough experience?
+YOU: What do you need help with? Let me see if I can do exactly that.
+Alternative: What if we could start with a small trial project? I can offer to build your landing page design for free. And if you really like it, I would love a testimonial from you. Sounds good?
+
+E. Close Sales
+Lastly, what should you do when a client wants to pay? How do you receive money from your client?
+Goals: Securing the agreement
+Guidelines:
+1. Preferred method: Paypal, Wise (International Client), if they request another payment option, then it is usually might be not legit
+2. Can be full payment or 50% Upfront, 50% Upon Completion
+
+EXAMPLES:
+DM1: OFFER PRICE
+Client: How much do you charge for a web design?
+YOU: Normally, I charge $500 for a web design, but for this project, I'll do it for $200 and send it to you 5 days from now.
+
+DM2: SEND PAYPAL LINKS
+YOU: Great! To get started, could you send a 50% upfront payment, with the remaining 50% due upon completion. Sounds fair?
+YOU: Perfect. Here is the PayPal payment link: [Insert PayPal Link]. Once you've completed the payment, please let me know and send me a screenshot. We'll get started right away.
+
+KEY PRINCIPLES:
+- Always end with questions
+- Don't sound too AI - talk to REAL PERSON
+- Keep introduction SHORT 
+- Use "magic questions" - answer questions with questions
+- Use "Let's assume if..." for conditional closes
+- Offer value exchanges (discount for testimonial)
+- Don't rush - build rapport before closing
+- Sound natural and human, never robotic or pushy
+
+IMPORTANT TIPS:
+✅ Always end up with a magic question: "What do you mean by that?" / "What problems are you hoping to solve with this?"
+✅ Don't send long introductions - start with "hi" and a simple question
+✅ Be direct and show professionalism
+✅ Make offers in exchange for testimonials when appropriate
+❌ Don't end with statements like "ok, no problem" / "let me go through your website first"
+❌ Don't rush to make offers without building rapport first`;
+        }
+
+        // Auto-save configuration without save buttons
+        function saveConfig() {
+            const systemPromptEl = document.getElementById('systemPrompt');
+            const closingGuideEl = document.getElementById('closingGuide');
+            
+            // Only save if the elements exist and have values, otherwise keep the function-based values
+            if (systemPromptEl && systemPromptEl.value.trim()) {
+                config.systemPrompt = systemPromptEl.value;
+            }
+            if (closingGuideEl && closingGuideEl.value.trim()) {
+                config.closingGuide = closingGuideEl.value;
+            }
+            
+            config.temperature = parseFloat(document.getElementById('temperature').value);
+            config.maxTokens = parseInt(document.getElementById('maxTokens').value);
+            config.testMode = document.getElementById('testMode').checked;
+            config.debugMode = document.getElementById('debugMode').checked;
+            
+            // Create a saveable config object (can't save functions to localStorage)
+            const saveableConfig = {
+                systemPrompt: typeof config.systemPrompt === 'function' ? config.systemPrompt() : config.systemPrompt,
+                closingGuide: typeof config.closingGuide === 'function' ? config.closingGuide() : config.closingGuide,
+                temperature: config.temperature,
+                maxTokens: config.maxTokens,
+                testMode: config.testMode,
+                debugMode: config.debugMode
+            };
+            
+            localStorage.setItem('aiTestConfig', JSON.stringify(saveableConfig));
+        }
+
+        // Load saved config
+        function loadConfig() {
+            const saved = localStorage.getItem('aiTestConfig');
+            if (saved) {
+                config = { ...config, ...JSON.parse(saved) };
+            }
+            updateConfigUI();
+        }
+
+        // Update UI with current config
+        function updateConfigUI() {
+            // Handle system prompt - if it's a function result, use it, otherwise use the stored value
+            const systemPromptValue = typeof config.systemPrompt === 'function' ? config.systemPrompt() : config.systemPrompt;
+            const closingGuideValue = typeof config.closingGuide === 'function' ? config.closingGuide() : config.closingGuide;
+            
+            const systemPromptEl = document.getElementById('systemPrompt');
+            const closingGuideEl = document.getElementById('closingGuide');
+            
+            if (systemPromptEl) systemPromptEl.value = systemPromptValue;
+            if (closingGuideEl) closingGuideEl.value = closingGuideValue;
+            
+            document.getElementById('temperature').value = config.temperature;
+            document.getElementById('maxTokens').value = config.maxTokens;
+            document.getElementById('tempValue').textContent = config.temperature;
+            document.getElementById('testMode').checked = config.testMode;
+            document.getElementById('debugMode').checked = config.debugMode;
+        }
+
+        // Auto-save when config changes
+        document.addEventListener('DOMContentLoaded', function() {
+            const configInputs = ['systemPrompt', 'closingGuide', 'temperature', 'maxTokens', 'testMode', 'debugMode'];
+            configInputs.forEach(inputId => {
+                const input = document.getElementById(inputId);
+                if (input) {
+                    input.addEventListener('input', saveConfig);
+                    input.addEventListener('change', saveConfig);
+                }
+            });
+        });
+
+        // Reset to defaults
+        function resetToDefaults() {
+            if (confirm('Reset all settings to default values? This will clear your custom prompts and configuration.')) {
+                // Clear saved config
+                localStorage.removeItem('aiTestConfig');
+                
+                // Reset to defaults
+                config = {
+                    apiKey: 'sk-c79b321aec774d018f0c055f6ea4606d',
+                    systemPrompt: getFullSystemPrompt(),
+                    closingGuide: getFullClosingGuide(),
+                    temperature: 0.3,
+                    maxTokens: 1000,
+                    testMode: false,
+                    debugMode: false
+                };
+                
+                // Update UI
+                updateConfigUI();
+                
+                // Reset conversation
+                conversation = [];
+                renderChat();
+                
+                // Clear context
+                document.getElementById('contextInput').value = '';
+                
+                // Clear suggestions
+                document.getElementById('suggestionsArea').innerHTML = `
+                    <div class="empty-state">
+                        <p><strong>Reset complete!</strong></p>
+                        <p>All settings have been restored to defaults.</p>
+                    </div>
+                `;
+                
+                alert('✅ Reset complete! All settings restored to defaults.');
+            }
+        }
+        // Configuration panel toggle
+        function toggleConfig() {
+            const panel = document.getElementById('configPanel');
+            const toggle = document.querySelector('.config-toggle[onclick="toggleConfig()"]');
+            
+            if (panel.classList.contains('active')) {
+                panel.classList.remove('active');
+                toggle.classList.remove('active');
+            } else {
+                panel.classList.add('active');
+                toggle.classList.add('active');
+            }
+        }
+
+        // Update temperature display
+        function updateTemp() {
+            document.getElementById('tempValue').textContent = document.getElementById('temperature').value;
+        }
+
+        // Chat functions
+        function renderChat() {
+            const chatBox = document.getElementById('chatBox');
+            if (conversation.length === 0) {
+                chatBox.innerHTML = '<div style="text-align: center; color: #999; padding: 40px;">No messages yet. Add some conversation to get started.</div>';
+                return;
+            }
+            chatBox.innerHTML = conversation.map(msg => `
+                <div class="message ${msg.sender}">
+                    <div class="message-bubble">${msg.message}</div>
+                </div>
+            `).join('');
+            chatBox.scrollTop = chatBox.scrollHeight;
+        }
+
+        function addMessage() {
+            const sender = document.getElementById('senderSelect').value;
+            const message = document.getElementById('messageInput').value.trim();
+            
+            if (!message) return;
+            
+            conversation.push({ sender, message });
+            document.getElementById('messageInput').value = '';
+            renderChat();
+        }
+
+        function clearChat() {
+            conversation = [];
+            renderChat();
+        }
+
+        // Enter key support
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('messageInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    addMessage();
+                }
+            });
+        });
+
+        // AI Generation
+        async function generateSuggestions() {
+            const generateBtn = document.getElementById('generateBtn');
+            const suggestionsArea = document.getElementById('suggestionsArea');
+            
+            if (conversation.length === 0) {
+                suggestionsArea.innerHTML = '<div class="error">Please add some conversation messages first.</div>';
+                return;
+            }
+
+            generateBtn.disabled = true;
+            generateBtn.textContent = '⏳ Generating...';
+            suggestionsArea.innerHTML = `
+                <div class="loading">🤖 AI is analyzing the conversation...</div>
+                <div style="margin-top: 16px; padding: 12px; background: #f8f9fa; border-radius: 8px; font-size: 12px; color: #666;">
+                    💡 <strong>Tip:</strong> Open browser console (F12) to see the full request/response details
+                </div>
+            `;
+
+            try {
+                const result = await callDeepSeekAPI();
+                
+                if (config.testMode) {
+                    // In test mode, result is raw text
+                    displayRawResponse(result);
+                } else {
+                    // Normal mode, result is parsed JSON array
+                    displaySuggestions(result);
+                }
+            } catch (error) {
+                suggestionsArea.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            } finally {
+                generateBtn.disabled = false;
+                generateBtn.textContent = '🚀 Generate AI Suggestions';
+            }
+        }
+
+        async function callDeepSeekAPI() {
+            const conversationText = conversation.map(msg => `${msg.sender}: ${msg.message}`).join('\n');
+            const additionalContext = document.getElementById('contextInput').value.trim();
+
+            // Handle function-based prompts
+            const systemPromptValue = typeof config.systemPrompt === 'function' ? config.systemPrompt() : config.systemPrompt;
+            const closingGuideValue = typeof config.closingGuide === 'function' ? config.closingGuide() : config.closingGuide;
+
+            const fullPrompt = `${systemPromptValue}
+
+CLOSING GUIDE:
+${closingGuideValue}
+
+${additionalContext ? `ADDITIONAL CONTEXT: ${additionalContext}` : ''}
+
+CONVERSATION:
+${conversationText}`;
+
+            // If debug mode is enabled, show what we're sending to the AI
+            if (config.debugMode) {
+                displayDebugInfo(fullPrompt);
+            }
+
+            const requestPayload = {
+                model: 'deepseek-chat',
+                messages: [
+                    { role: 'system', content: fullPrompt }
+                ],
+                max_tokens: config.maxTokens,
+                temperature: config.temperature
+            };
+
+            // Console log what we're sending
+            console.log('🚀 REQUEST TO AI:', requestPayload);
+            console.log('📝 FULL PROMPT:', fullPrompt);
+
+            const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${config.apiKey}`
+                },
+                body: JSON.stringify(requestPayload)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`API Error ${response.status}: ${errorText}`);
+            }
+
+            const data = await response.json();
+            
+            // Console log what we received
+            console.log('📥 RESPONSE FROM AI:', data);
+            
+            let content = data.choices?.[0]?.message?.content || '';
+            
+            if (!content) {
+                throw new Error('No content returned from AI.');
+            }
+            
+            // Console log the actual content
+            console.log('💬 AI CONTENT:', content);
+
+            // Clean up response
+            const codeBlockMatch = content.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+            if (codeBlockMatch) {
+                content = codeBlockMatch[1];
+            }
+
+            // If test mode is enabled, return raw content
+            if (config.testMode) {
+                return content.trim();
+            }
+
+            // Otherwise, try to parse as JSON
+            try {
+                const suggestions = JSON.parse(content.trim());
+                if (!Array.isArray(suggestions) || suggestions.length === 0) {
+                    throw new Error('No valid suggestions received.');
+                }
+                return suggestions;
+            } catch (parseError) {
+                // Show raw response for debugging
+                throw new Error(`Could not parse AI response as JSON.\n\nRaw AI Response:\n"${content.trim()}"\n\nMake sure your system prompt instructs the AI to return valid JSON format.\n\nTip: Enable Test Mode in Configuration to see raw responses without JSON parsing.`);
+            }
+        }
+
+        function displayDebugInfo(fullPrompt) {
+            const suggestionsArea = document.getElementById('suggestionsArea');
+            
+            const promptPreview = fullPrompt.length > 500 ? 
+                fullPrompt.substring(0, 500) + '...' : 
+                fullPrompt;
+                
+            suggestionsArea.innerHTML = `
+                <div class="suggestion-card">
+                    <div class="suggestion-header">
+                        <div class="suggestion-stage">🔍 Debug: Full Prompt Being Sent</div>
+                        <button class="copy-btn" onclick="copySuggestion(\`${fullPrompt.replace(/`/g, '\\`')}\`)">📋 Copy Full Prompt</button>
+                    </div>
+                    <div class="suggestion-text" style="font-family: monospace; white-space: pre-wrap; font-size: 12px; max-height: 300px; overflow-y: auto; background: #f1f3f4;">${fullPrompt}</div>
+                    <div class="suggestion-reason">💡 This is exactly what gets sent to the AI. You can see if your closing guide is properly included.</div>
+                </div>
+                <div style="text-align: center; margin: 16px 0; color: #666;">
+                    ⏳ Sending to AI...
+                </div>
+            `;
+        }
+
+        function displaySuggestions(suggestions) {
+            const suggestionsArea = document.getElementById('suggestionsArea');
+            
+            // Enhanced console logging for AI reasoning
+            console.log('🧠 AI REASONING BREAKDOWN:');
+            suggestions.forEach((suggestion, index) => {
+                console.log(`\n${index + 1}. STAGE: ${suggestion.stage}`);
+                console.log(`   SUGGESTION: "${suggestion.suggestion}"`);
+                console.log(`   REASONING: ${suggestion.reason}`);
+            });
+            
+            suggestionsArea.innerHTML = suggestions.map((suggestion, index) => `
+                <div class="suggestion-card">
+                    <div class="suggestion-header">
+                        <div class="suggestion-stage">🎯 ${suggestion.stage || 'General'}</div>
+                        <button class="copy-btn" onclick="copySuggestion(\`${suggestion.suggestion.replace(/`/g, '\\`')}\`)">📋 Copy</button>
+                    </div>
+                    <div class="suggestion-text" style="font-size: 15px; font-weight: 500; margin-bottom: 12px;">${suggestion.suggestion}</div>
+                    <div class="suggestion-reason" style="background: #f8f9fa; padding: 12px; border-radius: 8px; border-left: 4px solid #667eea;">
+                        <strong>🧠 AI Reasoning:</strong> ${suggestion.reason}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function displayRawResponse(rawResponse) {
+            const suggestionsArea = document.getElementById('suggestionsArea');
+            
+            suggestionsArea.innerHTML = `
+                <div class="suggestion-card">
+                    <div class="suggestion-header">
+                        <div class="suggestion-stage">🧪 Test Mode: Raw AI Response</div>
+                        <button class="copy-btn" onclick="copySuggestion(\`${rawResponse.replace(/`/g, '\\`')}\`)">📋 Copy</button>
+                    </div>
+                    <div class="suggestion-text" style="font-family: monospace; white-space: pre-wrap; font-size: 13px;">${rawResponse}</div>
+                    <div class="suggestion-reason">💡 This is the raw response from the AI. Toggle off Test Mode to parse as JSON suggestions.</div>
+                </div>
+            `;
+        }
+
+        function copySuggestion(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                event.target.textContent = '✓ Copied!';
+                setTimeout(() => {
+                    event.target.textContent = '📋 Copy';
+                }, 1500);
+            }).catch(() => {
+                // Fallback
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                
+                event.target.textContent = '✓ Copied!';
+                setTimeout(() => {
+                    event.target.textContent = '📋 Copy';
+                }, 1500);
+            });
+        }
+
+        // Sample conversations for quick testing
+        const sampleConversations = {
+            opening: [
+                { sender: 'client', message: 'Hi, I saw your post about web design services. I might be interested.' },
+                { sender: 'freelancer', message: 'Hi! Thanks for reaching out. What kind of project are you working on?' },
+                { sender: 'client', message: 'I need a website for my small business. Nothing too fancy.' }
+            ],
+            discovery: [
+                { sender: 'client', message: 'Hi, I need a website for my consulting business.' },
+                { sender: 'freelancer', message: 'Great! Can you tell me more about your consulting business and what you\'re looking for?' },
+                { sender: 'client', message: 'I help small businesses with marketing strategy. I need something professional to showcase my services.' },
+                { sender: 'freelancer', message: 'That sounds interesting! Do you have any examples of websites you like or a specific style in mind?' },
+                { sender: 'client', message: 'I like clean, modern designs. Something that builds trust with potential clients.' }
+            ],
+            objection: [
+                { sender: 'client', message: 'I\'m interested in your web design services.' },
+                { sender: 'freelancer', message: 'Great! I can help you with that. What kind of website are you looking for?' },
+                { sender: 'client', message: 'A simple business website, maybe 3-4 pages.' },
+                { sender: 'freelancer', message: 'Perfect! For a 3-4 page business website, my rate is $500. When would you like to get started?' },
+                { sender: 'client', message: 'That seems a bit high. I was thinking more like $200-300.' }
+            ],
+            close: [
+                { sender: 'client', message: 'I like your portfolio and approach. What\'s the next step?' },
+                { sender: 'freelancer', message: 'Excellent! I\'m excited to work with you. For your project, it would be $400 total.' },
+                { sender: 'client', message: 'That sounds fair. How do we proceed?' },
+                { sender: 'freelancer', message: 'Great! I typically do 50% upfront and 50% upon completion. Does that work for you?' },
+                { sender: 'client', message: 'Yes, that works. When can you start?' }
+            ]
+        };
+
+        // Load sample conversation
+        function loadSampleConversation(type) {
+            if (sampleConversations[type]) {
+                conversation = [...sampleConversations[type]];
+                renderChat();
+            }
+        }
+
+        // Add quick test buttons
+        function addQuickTestButtons() {
+            const leftPanel = document.querySelector('.left-panel');
+            const quickTestDiv = document.createElement('div');
+            quickTestDiv.innerHTML = `
+                <div style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e1e5e9;">
+                    <div class="section-title" style="font-size: 14px; margin-bottom: 8px;">🚀 Quick Test Scenarios</div>
+                    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                        <button class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px;" onclick="loadSampleConversation('opening')">Opening</button>
+                        <button class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px;" onclick="loadSampleConversation('discovery')">Discovery</button>
+                        <button class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px;" onclick="loadSampleConversation('objection')">Objection</button>
+                        <button class="btn btn-secondary" style="font-size: 12px; padding: 6px 12px;" onclick="loadSampleConversation('close')">Close</button>
+                    </div>
+                </div>
+            `;
+            leftPanel.appendChild(quickTestDiv);
+        }
+
+        // Add conversation export/import
+        function exportConversation() {
+            const data = {
+                conversation: conversation,
+                context: document.getElementById('contextInput').value,
+                timestamp: new Date().toISOString()
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `conversation_${new Date().toISOString().split('T')[0]}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importConversation(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const data = JSON.parse(e.target.result);
+                        if (data.conversation) {
+                            conversation = data.conversation;
+                            renderChat();
+                        }
+                        if (data.context) {
+                            document.getElementById('contextInput').value = data.context;
+                        }
+                    } catch (error) {
+                        alert('Error importing conversation: ' + error.message);
+                    }
+                };
+                reader.readAsText(file);
+            }
+        }
+
+        // Initialize
+        loadConfig();
+        renderChat();
+        
+        // Add quick test buttons when DOM is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            addQuickTestButtons();
+        });
+    </script>
+</body>
+</html>
