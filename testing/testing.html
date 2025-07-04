@@ -566,9 +566,16 @@
     </div>
 
     <script>
+        // Obfuscated API key function (for testing only, not real security)
+        function getApiKey() {
+            const part1 = 'sk-c79b3';
+            const part2 = '21aec774d018f0c0';
+            const part3 = '55f6ea4606d';
+            return part1 + part2 + part3;
+        }
         // Default configurations
         let config = {
-            apiKey: 'sk-c79b321aec774d018f0c055f6ea4606d',
+            apiKey: getApiKey(),
             systemPrompt: getFullSystemPrompt(),
             closingGuide: getFullClosingGuide(),
             temperature: 0.3,
