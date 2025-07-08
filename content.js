@@ -15,10 +15,26 @@ function getApiKey() {
 // NOTE: This is only basic obfuscation and does NOT provide real security.
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/v1/chat/completions';
 
-// Add this at the top level, outside any function
+//for loadings animation and state
 let loadingMsgInterval = null;
 
-// Helper: format conversation as readable chat transcript
+/**
+ * Converts an array of message objects into a readable chat transcript string.
+ * Each message is formatted as "Sender: message" on its own line.
+ *
+ * Example input:
+ * [
+ *   { sender: "Alice", message: "Hi there!" },
+ *   { sender: "Bob", message: "Hello, how can I help you?" }
+ * ]
+ *
+ * Output:
+ * Alice: Hi there!
+ * Bob: Hello, how can I help you?
+ *
+ * @param {Array<{sender: string, message: string}>} messages - The conversation messages.
+ * @returns {string} - The formatted chat transcript.
+ */
 function formatConversationAsTranscript(messages) {
     return messages.map(m => `${m.sender}: ${m.message}`).join('\n');
 }
@@ -69,8 +85,9 @@ ${guide}
         const payload = {
             model: 'deepseek-chat',
             messages,
-            max_tokens: 500,
-            temperature: 0.7
+            max_tokens: 800,
+            temperature: 0.4,
+            top_p: 0.9,
         };
         console.log('DeepSeek API Request Payload:', payload);
         const response = await fetch(DEEPSEEK_API_URL, {
@@ -366,7 +383,7 @@ function analyzeConversation(context = '') {
       loadingMsgIndex = (loadingMsgIndex + 1) % loadingMessages.length;
       const msgEl = document.getElementById('loading-msg-text');
       if (msgEl) msgEl.textContent = loadingMessages[loadingMsgIndex];
-    }, 1200);
+    }, 1000);
     
     // Get messages
     const messages = scrapeMessagesWithContext();
