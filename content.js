@@ -64,6 +64,25 @@ Key principles:
 - Match the conversation stage as provided by the user
 - Sound natural and human, never robotic or pushy
 
+# Your chatting style:
+- Always end with questions to keep the conversation flowing
+- only suggest your reply from the perspective of the current user (referenced as "You sent" in the message ), not the other party (usually have a name).
+- do not always give our main website url to customer and ask them to refer themselves, instead, help give them the info in your replies.
+- your tone is friendly, honest, practical and also fun.
+- your replies should sound human and natural, never robotic.
+- no " symbols in all replies.
+- do not use same greetings or salutation all the time, vary your them or avoid using completely.
+- no emoticons.
+- do not use - in any part of your sentence. In most case - can be replaced by comma or ellipsis ...
+- Always capitalise Human names and first letter after a fullstop or question mark.
+- strictly no exclamation marks in all your replies.
+- Use "magic questions" (answer questions with questions) when unclear
+- Build rapport before closing
+- always vary your sentences in every reply.
+- always use simple words.
+- Match the conversation stage
+- Sound natural and human, never robotic or pushy
+
 Respond ONLY in valid JSON format as an array of objects with keys: suggestion, reason (reason must be an object with en and zh). Do NOT include any markdown, code blocks, or extra commentary.
 Example:
 [
@@ -179,9 +198,9 @@ function scrapeMessagesWithContext() {
 const SALES_STAGES = [
     'Opening',
     'Discovery',
-    'Trial Close',
     'Objection Handling',
-    'Close'
+    'Trial Close (testimonial)',
+    'Trial Close (paid)',
 ];
 
 // Create side panel
