@@ -27,7 +27,7 @@
           "https://*.facebook.com/*",
           "https://*.messenger.com/*"
         ],
-        "js": ["guide.js", "content.js"],
+        "js": ["guide.js", "content.js", "guide2.js", "guide3.js"],
         "run_at": "document_idle"
       }
     ],

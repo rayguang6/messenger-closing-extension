@@ -4,6 +4,7 @@
 window.CLOSING_GUIDE = `
 
 
+
 @How to Sell By Chat (DM)?
 There are 2 main ways to close deals in AI Agency. Here's a guideline for talking to clients to close deals via chat or DM, for more simple case.
 Important: You will need to create your own version of the script, using mine as a model. Ensure to customize it according to your specific needs and objectives. Pay attention to the structure and flow to maintain coherence. Feel free to add your unique insights and adapt the language to fit your style. Remember, this script serves as a foundation; your creativity and personal touch will make it truly effective.

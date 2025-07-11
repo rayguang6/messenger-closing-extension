@@ -154,6 +154,15 @@ ${guide}
     }
 }
 
+// Combine all guides into one string for the LLM
+function getAllGuidesText() {
+  return [
+    window.CLOSING_GUIDE,
+    window.CLOSING_GUIDE2,
+    window.CLOSING_GUIDE3
+  ].filter(Boolean).join('\n\n---\n\n');
+}
+
 // Your working message scraping function (cleaned up)
 function scrapeMessagesWithContext() {
     const messageNodes = document.querySelectorAll('div[data-scope="messages_table"][role="gridcell"]');
@@ -478,8 +487,9 @@ function analyzeConversation(context = '', stage = 'Opening') {
                     </details>
                 `;
 
-                // Call DeepSeek API for suggestions
-                const aiResponse = await callDeepSeekAPI(messages, window.CLOSING_GUIDE || 'Default sales guide', context, stage);
+                // Call DeepSeek API for suggestions using all guides
+                const allGuides = getAllGuidesText();
+                const aiResponse = await callDeepSeekAPI(messages, allGuides, context, stage);
 
                 if (aiResponse && Array.isArray(aiResponse) && aiResponse.length > 0) {
                     displaySuggestions(aiResponse, suggestionsContainer);
