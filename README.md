@@ -6,3 +6,4 @@
 go to chrome://extensions/
 - developer mode
 - "Load Unpacked" and select the folder
+![WhatsApp Image 2025-07-14 at 17 10 42](https://github.com/user-attachments/assets/09a0746e-2bc9-4f3f-9f4b-663047715128)
