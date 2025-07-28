@@ -171,18 +171,16 @@ async function callCozeAPI(conversation, guide, context = '', stage = 'Opening')
         // Do NOT trim or limit the conversation; send all scraped messages
         const transcript = formatConversationAsTranscript(conversation);
         
-        // Prepare the message content for Coze
-        let messageContent = transcript;
-        if (context && context.length > 0) {
-            messageContent = `[Context: ${context}]\n\n${transcript}`;
-        }
+        // Prepare the message content for Coze - keep conversation clean
+        const messageContent = transcript;
         
         const payload = {
             bot_id: COZE_BOT_ID,
             user_id: COZE_USER_ID,
             stream: true, // Enable streaming for better UX
             custom_variables: {
-                stage: stage
+                stage: stage,
+                context: context || ''
             },
             additional_messages: [
                 {
@@ -193,6 +191,10 @@ async function callCozeAPI(conversation, guide, context = '', stage = 'Opening')
                 }
             ]
         };
+        
+        console.log(`[COZE-${requestId}] API Call - Stage: "${stage}", Context: "${context}", Messages: ${conversation.length}`);
+        console.log(`[COZE-${requestId}] Full Payload:`, payload);
+        console.log(`[COZE-${requestId}] Note: Coze can access stage as {{stage}} and context as {{context}}`);
         
         const requestStartTime = Date.now();
         
