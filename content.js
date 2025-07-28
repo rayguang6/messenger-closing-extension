@@ -195,19 +195,43 @@ async function callCozeAPI(conversation, guide, context = '', stage = 'Opening')
         };
         
         const requestStartTime = Date.now();
-        const response = await fetch('https://api.coze.cn/v3/chat', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${COZE_API_TOKEN}`
-            },
-            body: JSON.stringify(payload)
-        });
         
-        if (!response.ok) {
-            const text = await response.text();
-            console.error(`[COZE-${requestId}] HTTP Error: ${response.status} - ${text}`);
-            return { error: 'http', status: response.status, statusText: response.statusText };
+        // Add timeout and retry logic
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+        
+        let response;
+        try {
+            response = await fetch('https://api.coze.cn/v3/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${COZE_API_TOKEN}`
+                },
+                body: JSON.stringify(payload),
+                signal: controller.signal
+            });
+            
+            clearTimeout(timeoutId);
+            
+            if (!response.ok) {
+                const text = await response.text();
+                console.error(`[COZE-${requestId}] HTTP Error: ${response.status} - ${text}`);
+                return { error: 'http', status: response.status, statusText: response.statusText };
+            }
+        } catch (fetchError) {
+            clearTimeout(timeoutId);
+            
+            if (fetchError.name === 'AbortError') {
+                console.error(`[COZE-${requestId}] Request timeout after 30 seconds`);
+                return { error: 'timeout' };
+            } else if (fetchError.message === 'Failed to fetch') {
+                console.error(`[COZE-${requestId}] Network error - possible causes: CORS, network issue, or API endpoint down`);
+                return { error: 'network', details: fetchError.message };
+            } else {
+                console.error(`[COZE-${requestId}] Fetch error:`, fetchError.message);
+                return { error: 'fetch', details: fetchError.message };
+            }
         }
         
         // Handle streaming response
@@ -216,7 +240,6 @@ async function callCozeAPI(conversation, guide, context = '', stage = 'Opening')
         let fullContent = '';
         let finalContentReceived = false;
         let buffer = ''; // Buffer to handle incomplete lines/events
-        let streamStartTime = Date.now();
         
         try {
             while (true) {
@@ -229,12 +252,7 @@ async function callCozeAPI(conversation, guide, context = '', stage = 'Opening')
                 const chunk = decoder.decode(value, { stream: true });
                 buffer += chunk;
                 
-                // Simple progress update
-                const streamingIndicator = document.getElementById('streaming-indicator');
-                if (streamingIndicator) {
-                    const elapsed = Date.now() - streamStartTime;
-                    streamingIndicator.textContent = `🔄 Receiving AI response... (${Math.round(elapsed/1000)}s)`;
-                }
+
                 
                 processBuffer();
             }
@@ -256,7 +274,6 @@ async function callCozeAPI(conversation, guide, context = '', stage = 'Opening')
                 const dataLine = lines.slice(1).join('\n');
                 
                 if (!eventLine.startsWith('event:') || !dataLine.startsWith('data:')) {
-                    console.warn('[COZE STREAM] Malformed event block:', part);
                     continue;
                 }
                 
@@ -274,7 +291,7 @@ async function callCozeAPI(conversation, guide, context = '', stage = 'Opening')
                         }
                     }
                 } catch (e) {
-                    console.warn('[COZE STREAM] Error parsing event data:', part, e);
+                    // Silently ignore parsing errors
                 }
             }
             
@@ -536,14 +553,19 @@ function analyzeConversation(context = '', stage = 'Opening') {
         loadingMsgInterval = null;
     }
 
-    // Show animated progress indicator and skeleton loading cards
+    // Show progress bar and skeleton loading cards
     suggestionsContainer.innerHTML = `
       <div id="dynamic-loading-message" style="display: flex; flex-direction: column; align-items: center; margin-bottom: 16px;">
-        <div class="bouncing-dots-loader">
-          <span></span><span></span><span></span>
+        <div style="width: 100%; display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+          <div style="flex: 1; background: #f0f0f0; border-radius: 10px; height: 8px; overflow: hidden;">
+            <div id="progress-bar" style="width: 0%; height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); border-radius: 10px; transition: width 0.3s ease-out; position: relative; overflow: hidden; box-shadow: 0 0 10px rgba(102, 126, 234, 0.3);">
+              <div style="position: absolute; top: 0; left: -100%; width: 100%; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent); animation: shimmer 1.5s infinite;"></div>
+              <div style="position: absolute; top: 0; right: 0; width: 20px; height: 100%; background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6)); animation: glow 2s infinite;"></div>
+            </div>
+          </div>
+          <div id="progress-text" style="font-size: 14px; color: #667eea; font-weight: 600; min-width: 40px; text-align: right; animation: bounceText 0.5s ease-out;">0%</div>
         </div>
-        <div id="loading-msg-text" style="font-size: 14px; color: #764ba2; margin-top: 8px; font-weight: 500; letter-spacing: 0.2px;">${loadingMessages[0]}</div>
-        ${USE_COZE ? '<div id="streaming-indicator" style="font-size: 12px; color: #667eea; margin-top: 4px; opacity: 0.8;">🔄 Streaming response...</div>' : ''}
+        <div id="loading-msg-text" style="font-size: 13px; color: #764ba2; font-weight: 500; letter-spacing: 0.2px; text-align: center; max-width: 280px; line-height: 1.4;">${loadingMessages[0]}</div>
       </div>
       <div class="skeleton-card shimmer"></div>
       <div class="skeleton-card shimmer"></div>
@@ -573,39 +595,80 @@ function analyzeConversation(context = '', stage = 'Opening') {
           50% { opacity: 0.5; }
           100% { opacity: 1; }
         }
-        .bouncing-dots-loader {
-          display: flex;
-          align-items: flex-end;
-          height: 18px;
+        @keyframes shimmer {
+          0% { left: -100%; }
+          100% { left: 100%; }
         }
-        .bouncing-dots-loader span {
-          display: inline-block;
-          width: 8px;
-          height: 8px;
-          margin: 0 2px;
-          background: #764ba2;
-          border-radius: 50%;
-          animation: bounce 0.6s infinite alternate;
+        @keyframes glow {
+          0%, 100% { opacity: 0.3; }
+          50% { opacity: 0.8; }
         }
-        .bouncing-dots-loader span:nth-child(2) {
-          animation-delay: 0.12s;
+
+        @keyframes bounceText {
+          0% { transform: scale(1); }
+          50% { transform: scale(1.1); }
+          100% { transform: scale(1); }
         }
-        .bouncing-dots-loader span:nth-child(3) {
-          animation-delay: 0.24s;
-        }
-        @keyframes bounce {
-          0% { transform: translateY(0); }
-          100% { transform: translateY(-10px); }
-        }
+
       </style>
     `;
 
-    // Start cycling loading messages
+    // Progress bar setup
+    let progress = 0;
+    const targetTime = 25000; // 20 seconds
+    const progressStep = 100 / (targetTime / 100); // Progress per 100ms
+    
+    // Typewriter effect function
+    let isTyping = false;
+    function typewriterEffect(element, text) {
+      if (isTyping) return; // Prevent overlapping typewriter effects
+      
+      isTyping = true;
+      element.textContent = '';
+      let i = 0;
+      const speed = 100; // ms per character
+      
+      function typeChar() {
+        if (i < text.length) {
+          element.textContent += text.charAt(i);
+          i++;
+          setTimeout(typeChar, speed);
+        } else {
+          isTyping = false; // Allow next typewriter effect
+        }
+      }
+      typeChar();
+    }
+    
+
+    
+    // Start progress bar animation with cycling messages
     loadingMsgInterval = setInterval(() => {
-      loadingMsgIndex = (loadingMsgIndex + 1) % loadingMessages.length;
-      const msgEl = document.getElementById('loading-msg-text');
-      if (msgEl) msgEl.textContent = loadingMessages[loadingMsgIndex];
-    }, 1000);
+      progress += progressStep;
+      if (progress > 95) progress = 95; // Don't reach 100% until done
+      
+      const progressBar = document.getElementById('progress-bar');
+      const progressText = document.getElementById('progress-text');
+      const loadingText = document.getElementById('loading-msg-text');
+      
+      if (progressBar) progressBar.style.width = progress + '%';
+      if (progressText) {
+        progressText.textContent = Math.round(progress) + '%';
+        // Trigger bounce animation
+        progressText.style.animation = 'none';
+        progressText.offsetHeight; // Trigger reflow
+        progressText.style.animation = 'bounceText 0.5s ease-out';
+      }
+      
+      // Update message every 2 seconds with typewriter effect
+      if (Math.round(progress) % 20 === 0 && Math.round(progress) > 0) {
+        loadingMsgIndex = (loadingMsgIndex + 1) % loadingMessages.length;
+        if (loadingText && !isTyping) {
+          const newMessage = loadingMessages[loadingMsgIndex];
+          typewriterEffect(loadingText, newMessage);
+        }
+      }
+    }, 100); // 100ms updates for smooth animation
 
     const analysisStartTime = Date.now();
     
@@ -615,13 +678,23 @@ function analyzeConversation(context = '', stage = 'Opening') {
     console.log(`[FACEBOOK] Messages:`, formatConversationAsTranscript(messages));
 
     // Helper function to clear loading and reset button
-    const clearLoadingState = () => {
-        if (loadingMsgInterval) {
-            clearInterval(loadingMsgInterval);
-            loadingMsgInterval = null;
-        }
-        button.textContent = '🔍 Get Suggestions';
-        button.disabled = false;
+        const clearLoadingState = () => {
+      if (loadingMsgInterval) {
+        clearInterval(loadingMsgInterval);
+        loadingMsgInterval = null;
+      }
+      
+      // Complete progress bar to 100%
+      const progressBar = document.getElementById('progress-bar');
+      const progressText = document.getElementById('progress-text');
+      const loadingText = document.getElementById('loading-msg-text');
+      
+      if (progressBar) progressBar.style.width = '100%';
+      if (progressText) progressText.textContent = '100%';
+      if (loadingText) loadingText.textContent = '✅ Complete!';
+      
+      button.textContent = '🔍 Get Suggestions';
+      button.disabled = false;
     };
 
     setTimeout(async () => {
@@ -661,11 +734,6 @@ function analyzeConversation(context = '', stage = 'Opening') {
                 // Try Coze first (primary), fallback to DeepSeek if needed
                 try {
                     console.log('[LLM] Using Coze');
-                    // Update streaming indicator
-                    const streamingIndicator = document.getElementById('streaming-indicator');
-                    if (streamingIndicator) {
-                        streamingIndicator.textContent = '🔄 Receiving AI response...';
-                    }
                     aiResponse = await callCozeAPI(messages, allGuides, context, stage);
                     
                     // Check if Coze failed and we need fallback
@@ -673,14 +741,6 @@ function analyzeConversation(context = '', stage = 'Opening') {
                         console.log('[LLM] Coze failed, trying DeepSeek');
                         usedFallback = true;
                         aiResponse = await callDeepSeekAPI(messages, allGuides, context, stage);
-                    }
-                    
-                    // Update streaming indicator when done
-                    if (streamingIndicator) {
-                        streamingIndicator.textContent = usedFallback ? '✅ Response received (DeepSeek)!' : '✅ Response received!';
-                        setTimeout(() => {
-                            streamingIndicator.style.display = 'none';
-                        }, 1000);
                     }
                 } catch (error) {
                     console.log('[LLM] Coze exception, trying DeepSeek');
@@ -700,6 +760,12 @@ function analyzeConversation(context = '', stage = 'Opening') {
                         switch (aiResponse.error) {
                             case 'http':
                                 errorMsg += 'A network or server error occurred.';
+                                break;
+                            case 'network':
+                                errorMsg += 'Network connection issue. Please check your internet.';
+                                break;
+                            case 'timeout':
+                                errorMsg += 'Request timed out. Please try again.';
                                 break;
                             case 'no_content':
                                 errorMsg += 'No content returned from AI.';
