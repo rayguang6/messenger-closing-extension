@@ -5,7 +5,6 @@ console.log('🤖 Facebook Chat AI Assistant loaded!');
 const USE_COZE = true; // Primary: Coze, Fallback: DeepSeek
 const COZE_BOT_ID = '7514582312970174501';
 const COZE_USER_ID = 'aihuat';
-const COZE_API_TOKEN = 'pat_BKRD00FVjNiFww33AMeziBBxNf'+'uht5SydEr4md3gOadL755IGsRb0hdvWjv6fR58';
 
 // DeepSeek API integration
 // NOTE: Chrome extensions do not support .env files. Store secrets securely, e.g., chrome.storage or prompt user for API key in settings.
@@ -192,7 +191,7 @@ async function callCozeAPI(conversation, guide, context = '', stage = 'Opening')
             ]
         };
         
-        console.log(`[COZE-${requestId}] API Call - Stage: "${stage}", Context: "${context}", Messages: ${conversation.length}`);
+        console.log(`[COZE-${requestId}] API Call via Vercel Proxy - Stage: "${stage}", Context: "${context}", Messages: ${conversation.length}`);
         console.log(`[COZE-${requestId}] Full Payload:`, payload);
         console.log(`[COZE-${requestId}] Note: Coze can access stage as {{stage}} and context as {{context}}`);
         
@@ -204,11 +203,10 @@ async function callCozeAPI(conversation, guide, context = '', stage = 'Opening')
         
         let response;
         try {
-            response = await fetch('https://api.coze.cn/v3/chat', {
+            response = await fetch('https://coze-central-proxy.vercel.app/api/relay', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${COZE_API_TOKEN}`
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify(payload),
                 signal: controller.signal
@@ -218,7 +216,7 @@ async function callCozeAPI(conversation, guide, context = '', stage = 'Opening')
             
             if (!response.ok) {
                 const text = await response.text();
-                console.error(`[COZE-${requestId}] HTTP Error: ${response.status} - ${text}`);
+                console.error(`[COZE-${requestId}] Vercel Proxy HTTP Error: ${response.status} - ${text}`);
                 return { error: 'http', status: response.status, statusText: response.statusText };
             }
         } catch (fetchError) {
@@ -228,7 +226,7 @@ async function callCozeAPI(conversation, guide, context = '', stage = 'Opening')
                 console.error(`[COZE-${requestId}] Request timeout after 30 seconds`);
                 return { error: 'timeout' };
             } else if (fetchError.message === 'Failed to fetch') {
-                console.error(`[COZE-${requestId}] Network error - possible causes: CORS, network issue, or API endpoint down`);
+                console.error(`[COZE-${requestId}] Network error - possible causes: CORS, network issue, or Vercel proxy down`);
                 return { error: 'network', details: fetchError.message };
             } else {
                 console.error(`[COZE-${requestId}] Fetch error:`, fetchError.message);

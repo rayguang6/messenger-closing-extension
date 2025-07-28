@@ -18,7 +18,8 @@
     "host_permissions": [
       "https://*.facebook.com/*",
       "https://*.messenger.com/*",
-      "https://api.deepseek.com/*"
+      "https://api.deepseek.com/*",
+      "https://coze-central-proxy.vercel.app/*"
     ],
     
     "content_scripts": [
