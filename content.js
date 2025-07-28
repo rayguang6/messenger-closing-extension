@@ -1,8 +1,8 @@
 // Facebook Chat AI Assistant - Content Script
 console.log('🤖 Facebook Chat AI Assistant loaded!');
 
-// Configuration: Switch between LLM providers
-const USE_COZE = true; // Set to false to use DeepSeek, true to use Coze
+// Configuration: Coze as primary, DeepSeek as fallback
+const USE_COZE = true; // Primary: Coze, Fallback: DeepSeek
 const COZE_BOT_ID = '7514582312970174501';
 const COZE_USER_ID = 'aihuat';
 const COZE_API_TOKEN = 'pat_BKRD00FVjNiFww33AMeziBBxNf'+'uht5SydEr4md3gOadL755IGsRb0hdvWjv6fR58';
@@ -46,10 +46,11 @@ function formatConversationAsTranscript(messages) {
 }
 
 async function callDeepSeekAPI(conversation, guide, context = '', stage = 'Opening') {
+    const requestId = Date.now().toString(36);
+    
     try {
         // Do NOT trim or limit the conversation; send all scraped messages
         const transcript = formatConversationAsTranscript(conversation);
-        console.log('[LLM DEBUG] Transcript sent to LLM:', transcript);
         const systemPrompt = `
 You are an expert sales coach specializing in closing web design and digital marketing deals via Facebook Messenger.
 
@@ -119,6 +120,7 @@ ${guide}
             temperature: 0.7
         };
         console.log('[LLM DEBUG] Full payload sent to LLM:', JSON.stringify(payload, null, 2));
+        const requestStartTime = Date.now();
         const response = await fetch(DEEPSEEK_API_URL, {
             method: 'POST',
             headers: {
@@ -133,9 +135,9 @@ ${guide}
             return { error: 'http', status: response.status, statusText: response.statusText };
         }
         const data = await response.json();
-        console.log('DeepSeek API Raw Response:', data);
         let content = data.choices?.[0]?.message?.content || '';
         if (!content) {
+            console.error(`[DEEPSEEK-${requestId}] No content in response`);
             return { error: 'no_content' };
         }
         // Remove Markdown code block if present
@@ -147,25 +149,27 @@ ${guide}
         try {
             const parsed = JSON.parse(content);
             if (!Array.isArray(parsed) || parsed.length === 0) {
+                console.error(`[DEEPSEEK-${requestId}] Empty array returned`);
                 return { error: 'empty_array' };
             }
             return parsed;
         } catch (err) {
-            console.warn('DeepSeek response not valid JSON. Raw content:', content, err);
+            console.error(`[DEEPSEEK-${requestId}] JSON parse error:`, err.message);
             return { error: 'parse' };
         }
     } catch (error) {
-        console.error('DeepSeek API Exception:', error);
+        console.error(`[DEEPSEEK-${requestId}] Exception:`, error.message);
         return { error: 'exception' };
     }
 }
 
 // Coze API integration
 async function callCozeAPI(conversation, guide, context = '', stage = 'Opening') {
+    const requestId = Date.now().toString(36);
+    
     try {
         // Do NOT trim or limit the conversation; send all scraped messages
         const transcript = formatConversationAsTranscript(conversation);
-        console.log('[COZE DEBUG] Transcript sent to Coze:', transcript);
         
         // Prepare the message content for Coze
         let messageContent = transcript;
@@ -190,8 +194,7 @@ async function callCozeAPI(conversation, guide, context = '', stage = 'Opening')
             ]
         };
         
-        console.log('[COZE DEBUG] Full payload sent to Coze:', JSON.stringify(payload, null, 2));
-        
+        const requestStartTime = Date.now();
         const response = await fetch('https://api.coze.cn/v3/chat', {
             method: 'POST',
             headers: {
@@ -203,7 +206,7 @@ async function callCozeAPI(conversation, guide, context = '', stage = 'Opening')
         
         if (!response.ok) {
             const text = await response.text();
-            console.error('Coze API HTTP Error:', response.status, text);
+            console.error(`[COZE-${requestId}] HTTP Error: ${response.status} - ${text}`);
             return { error: 'http', status: response.status, statusText: response.statusText };
         }
         
@@ -261,8 +264,6 @@ async function callCozeAPI(conversation, guide, context = '', stage = 'Opening')
                     const eventType = eventLine.substring('event:'.length).trim();
                     const eventData = JSON.parse(dataLine.substring('data:'.length));
                     
-                    console.log('[COZE STREAM] Event:', eventType, 'Data:', eventData);
-                    
                     if (eventData.type === 'answer' && eventData.content) {
                         if (eventType === 'conversation.message.delta') {
                             fullContent += eventData.content;
@@ -282,9 +283,8 @@ async function callCozeAPI(conversation, guide, context = '', stage = 'Opening')
             }
         }
         
-        console.log('[COZE DEBUG] Full streamed content:', fullContent);
-        
         if (!fullContent) {
+            console.error(`[COZE-${requestId}] No content received`);
             return { error: 'no_content' };
         }
         
@@ -298,15 +298,16 @@ async function callCozeAPI(conversation, guide, context = '', stage = 'Opening')
         try {
             const parsed = JSON.parse(fullContent);
             if (!Array.isArray(parsed) || parsed.length === 0) {
+                console.error(`[COZE-${requestId}] Empty array returned`);
                 return { error: 'empty_array' };
             }
             return parsed;
         } catch (err) {
-            console.warn('Coze response not valid JSON. Raw content:', fullContent, err);
+            console.error(`[COZE-${requestId}] JSON parse error:`, err.message);
             return { error: 'parse' };
         }
     } catch (error) {
-        console.error('Coze API Exception:', error);
+        console.error(`[COZE-${requestId}] Exception:`, error.message);
         return { error: 'exception' };
     }
 }
@@ -606,8 +607,12 @@ function analyzeConversation(context = '', stage = 'Opening') {
       if (msgEl) msgEl.textContent = loadingMessages[loadingMsgIndex];
     }, 1000);
 
+    const analysisStartTime = Date.now();
+    
     // Get messages
     const messages = scrapeMessagesWithContext();
+    
+    console.log(`[FACEBOOK] Messages:`, formatConversationAsTranscript(messages));
 
     // Helper function to clear loading and reset button
     const clearLoadingState = () => {
@@ -651,28 +656,42 @@ function analyzeConversation(context = '', stage = 'Opening') {
                 // Call API for suggestions using all guides
                 const allGuides = getAllGuidesText();
                 let aiResponse;
+                let usedFallback = false;
                 
-                if (USE_COZE) {
-                    console.log('[DEBUG] Using Coze API');
+                // Try Coze first (primary), fallback to DeepSeek if needed
+                try {
+                    console.log('[LLM] Using Coze');
                     // Update streaming indicator
                     const streamingIndicator = document.getElementById('streaming-indicator');
                     if (streamingIndicator) {
                         streamingIndicator.textContent = '🔄 Receiving AI response...';
                     }
                     aiResponse = await callCozeAPI(messages, allGuides, context, stage);
+                    
+                    // Check if Coze failed and we need fallback
+                    if (aiResponse && aiResponse.error) {
+                        console.log('[LLM] Coze failed, trying DeepSeek');
+                        usedFallback = true;
+                        aiResponse = await callDeepSeekAPI(messages, allGuides, context, stage);
+                    }
+                    
                     // Update streaming indicator when done
                     if (streamingIndicator) {
-                        streamingIndicator.textContent = '✅ Response received!';
+                        streamingIndicator.textContent = usedFallback ? '✅ Response received (DeepSeek)!' : '✅ Response received!';
                         setTimeout(() => {
                             streamingIndicator.style.display = 'none';
                         }, 1000);
                     }
-                } else {
-                    console.log('[DEBUG] Using DeepSeek API');
+                } catch (error) {
+                    console.log('[LLM] Coze exception, trying DeepSeek');
+                    usedFallback = true;
                     aiResponse = await callDeepSeekAPI(messages, allGuides, context, stage);
                 }
 
                 if (aiResponse && Array.isArray(aiResponse) && aiResponse.length > 0) {
+                    console.log(`[RESPONSE] Got ${aiResponse.length} suggestions from ${usedFallback ? 'DeepSeek' : 'Coze'}`);
+                    console.log(`[RESPONSE] Data:`, aiResponse);
+                    console.log(`[TIME] Total: ${Date.now() - analysisStartTime}ms`);
                     displaySuggestions(aiResponse, suggestionsContainer);
                 } else {
                     // User-friendly error messages only
