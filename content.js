@@ -1,6 +1,12 @@
 // Facebook Chat AI Assistant - Content Script
 console.log('🤖 Facebook Chat AI Assistant loaded!');
 
+// Configuration: Switch between LLM providers
+const USE_COZE = true; // Set to false to use DeepSeek, true to use Coze
+const COZE_BOT_ID = '7514582312970174501';
+const COZE_USER_ID = 'aihuat';
+const COZE_API_TOKEN = 'pat_BKRD00FVjNiFww33AMeziBBxNf'+'uht5SydEr4md3gOadL755IGsRb0hdvWjv6fR58';
+
 // DeepSeek API integration
 // NOTE: Chrome extensions do not support .env files. Store secrets securely, e.g., chrome.storage or prompt user for API key in settings.
 // For basic obfuscation, do not assign the API key directly. Instead, use a function that joins fragments.
@@ -154,6 +160,159 @@ ${guide}
     }
 }
 
+// Coze API integration
+async function callCozeAPI(conversation, guide, context = '', stage = 'Opening') {
+    try {
+        // Do NOT trim or limit the conversation; send all scraped messages
+        const transcript = formatConversationAsTranscript(conversation);
+        console.log('[COZE DEBUG] Transcript sent to Coze:', transcript);
+        
+        // Prepare the message content for Coze
+        let messageContent = transcript;
+        if (context && context.length > 0) {
+            messageContent = `[Context: ${context}]\n\n${transcript}`;
+        }
+        
+        const payload = {
+            bot_id: COZE_BOT_ID,
+            user_id: COZE_USER_ID,
+            stream: true, // Enable streaming for better UX
+            custom_variables: {
+                stage: stage
+            },
+            additional_messages: [
+                {
+                    role: 'user',
+                    type: 'question',
+                    content_type: 'text',
+                    content: messageContent
+                }
+            ]
+        };
+        
+        console.log('[COZE DEBUG] Full payload sent to Coze:', JSON.stringify(payload, null, 2));
+        
+        const response = await fetch('https://api.coze.cn/v3/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${COZE_API_TOKEN}`
+            },
+            body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) {
+            const text = await response.text();
+            console.error('Coze API HTTP Error:', response.status, text);
+            return { error: 'http', status: response.status, statusText: response.statusText };
+        }
+        
+        // Handle streaming response
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullContent = '';
+        let finalContentReceived = false;
+        let buffer = ''; // Buffer to handle incomplete lines/events
+        let streamStartTime = Date.now();
+        
+        try {
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) {
+                    processBuffer();
+                    break;
+                }
+                
+                const chunk = decoder.decode(value, { stream: true });
+                buffer += chunk;
+                
+                // Simple progress update
+                const streamingIndicator = document.getElementById('streaming-indicator');
+                if (streamingIndicator) {
+                    const elapsed = Date.now() - streamStartTime;
+                    streamingIndicator.textContent = `🔄 Receiving AI response... (${Math.round(elapsed/1000)}s)`;
+                }
+                
+                processBuffer();
+            }
+        } finally {
+            reader.releaseLock();
+        }
+        
+        function processBuffer() {
+            const parts = buffer.split('\n\n');
+            buffer = parts.pop() || '';
+            
+            for (const part of parts) {
+                if (part.trim() === '') continue;
+                
+                const lines = part.split('\n');
+                if (lines.length < 2) continue;
+                
+                const eventLine = lines[0];
+                const dataLine = lines.slice(1).join('\n');
+                
+                if (!eventLine.startsWith('event:') || !dataLine.startsWith('data:')) {
+                    console.warn('[COZE STREAM] Malformed event block:', part);
+                    continue;
+                }
+                
+                try {
+                    const eventType = eventLine.substring('event:'.length).trim();
+                    const eventData = JSON.parse(dataLine.substring('data:'.length));
+                    
+                    console.log('[COZE STREAM] Event:', eventType, 'Data:', eventData);
+                    
+                    if (eventData.type === 'answer' && eventData.content) {
+                        if (eventType === 'conversation.message.delta') {
+                            fullContent += eventData.content;
+                        } else if (eventType === 'conversation.message.completed') {
+                            fullContent = eventData.content;
+                            finalContentReceived = true;
+                            break;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('[COZE STREAM] Error parsing event data:', part, e);
+                }
+            }
+            
+            if (finalContentReceived) {
+                buffer = '';
+            }
+        }
+        
+        console.log('[COZE DEBUG] Full streamed content:', fullContent);
+        
+        if (!fullContent) {
+            return { error: 'no_content' };
+        }
+        
+        // Remove Markdown code block if present
+        const codeBlockMatch = fullContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+        if (codeBlockMatch) {
+            fullContent = codeBlockMatch[1];
+        }
+        fullContent = fullContent.trim();
+        
+        try {
+            const parsed = JSON.parse(fullContent);
+            if (!Array.isArray(parsed) || parsed.length === 0) {
+                return { error: 'empty_array' };
+            }
+            return parsed;
+        } catch (err) {
+            console.warn('Coze response not valid JSON. Raw content:', fullContent, err);
+            return { error: 'parse' };
+        }
+    } catch (error) {
+        console.error('Coze API Exception:', error);
+        return { error: 'exception' };
+    }
+}
+
+
+
 // Combine all guides into one string for the LLM
 function getAllGuidesText() {
   return [
@@ -250,7 +409,7 @@ function createSidePanel() {
         ">
             <div>
                 <h3 style="margin: 0; font-size: 16px; font-weight: 600;">🤖 Closing Coach</h3>
-                <div style="font-size: 12px; opacity: 0.9;">AI Sales Assistant</div>
+                <div style="font-size: 12px; opacity: 0.9;">AI Sales Assistant (${USE_COZE ? 'Coze' : 'DeepSeek'})</div>
             </div>
             <button id="close-panel" style="
                 background: rgba(255, 255, 255, 0.2);
@@ -340,6 +499,7 @@ function setupPanelEvents() {
     document.getElementById('get-suggestions-btn').addEventListener('click', () => {
         const context = document.getElementById('context-input').value.trim();
         const stage = document.getElementById('stage-select').value;
+        console.log(`[DEBUG] Starting analysis with ${USE_COZE ? 'Coze' : 'DeepSeek'} API`);
         analyzeConversation(context, stage);
     });
 }
@@ -382,6 +542,7 @@ function analyzeConversation(context = '', stage = 'Opening') {
           <span></span><span></span><span></span>
         </div>
         <div id="loading-msg-text" style="font-size: 14px; color: #764ba2; margin-top: 8px; font-weight: 500; letter-spacing: 0.2px;">${loadingMessages[0]}</div>
+        ${USE_COZE ? '<div id="streaming-indicator" style="font-size: 12px; color: #667eea; margin-top: 4px; opacity: 0.8;">🔄 Streaming response...</div>' : ''}
       </div>
       <div class="skeleton-card shimmer"></div>
       <div class="skeleton-card shimmer"></div>
@@ -487,9 +648,29 @@ function analyzeConversation(context = '', stage = 'Opening') {
                     </details>
                 `;
 
-                // Call DeepSeek API for suggestions using all guides
+                // Call API for suggestions using all guides
                 const allGuides = getAllGuidesText();
-                const aiResponse = await callDeepSeekAPI(messages, allGuides, context, stage);
+                let aiResponse;
+                
+                if (USE_COZE) {
+                    console.log('[DEBUG] Using Coze API');
+                    // Update streaming indicator
+                    const streamingIndicator = document.getElementById('streaming-indicator');
+                    if (streamingIndicator) {
+                        streamingIndicator.textContent = '🔄 Receiving AI response...';
+                    }
+                    aiResponse = await callCozeAPI(messages, allGuides, context, stage);
+                    // Update streaming indicator when done
+                    if (streamingIndicator) {
+                        streamingIndicator.textContent = '✅ Response received!';
+                        setTimeout(() => {
+                            streamingIndicator.style.display = 'none';
+                        }, 1000);
+                    }
+                } else {
+                    console.log('[DEBUG] Using DeepSeek API');
+                    aiResponse = await callDeepSeekAPI(messages, allGuides, context, stage);
+                }
 
                 if (aiResponse && Array.isArray(aiResponse) && aiResponse.length > 0) {
                     displaySuggestions(aiResponse, suggestionsContainer);

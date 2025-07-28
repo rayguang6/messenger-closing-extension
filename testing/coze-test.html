@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coze API Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            background: #f8f9fa;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        button:hover {
+            background: #5a6fd8;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 13px;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        .suggestions-display {
+            background: white;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .suggestion-card {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 18px 16px 10px 16px;
+            margin-bottom: 18px;
+            box-shadow: 0 2px 8px rgba(102,126,234,0.04);
+            position: relative;
+        }
+        .suggestion-text {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            line-height: 1.5;
+            color: #222;
+        }
+        .reason-section {
+            border-top: 1px solid #e1e5e9;
+            margin-top: 12px;
+            padding-top: 10px;
+            background: #f6f8fa;
+            border-radius: 0 0 8px 8px;
+        }
+        .reason-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: #764ba2;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .reason-text {
+            font-size: 14px;
+            color: #333;
+            margin-bottom: 2px;
+        }
+        .streaming-indicator {
+            display: inline-block;
+            margin-left: 10px;
+            font-size: 12px;
+            color: #667eea;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🤖 Coze API Test</h1>
+        <p>This page helps test the Coze API integration for the Facebook Chat AI Assistant.</p>
+        
+        <div class="test-section">
+            <h3>Test Configuration</h3>
+            <p><strong>Current API:</strong> <span id="current-api">Loading...</span></p>
+            <p><strong>Bot ID:</strong> <span id="bot-id">Loading...</span></p>
+            <p><strong>User ID:</strong> <span id="user-id">Loading...</span></p>
+            <button onclick="testCozeAPI()">🧪 Test Coze API Call</button>
+            <div id="test-result" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>Sample Conversation Test</h3>
+            <p>Test with a sample conversation to see if the API returns proper suggestions.</p>
+            <button onclick="testWithSampleConversation()">💬 Test with Sample Chat</button>
+            <div id="sample-result" class="result" style="display: none;"></div>
+            <div id="suggestions-display" class="suggestions-display" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>Streaming Debug Test</h3>
+            <p>Test to see exactly what data we receive from Coze streaming.</p>
+            <button onclick="testStreamingDebug()">🔍 Debug Streaming</button>
+            <div id="streaming-debug" class="result" style="display: none;"></div>
+        </div>
+
+        <div class="test-section">
+            <h3>API Switch Test</h3>
+            <p>Test switching between Coze and DeepSeek APIs.</p>
+            <button onclick="testAPISwitch()">🔄 Test API Switch</button>
+            <div id="switch-result" class="result" style="display: none;"></div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration (same as in content.js)
+        const USE_COZE = true;
+        const COZE_BOT_ID = '7514582312970174501';
+        const COZE_USER_ID = 'aihuat';
+        const COZE_API_TOKEN = 'pat_BKRD00FVjNiFww33AMeziBBxNfuht5SydEr4md3gOadL755IGsRb0hdvWjv6fR58';
+
+        // Update display
+        document.getElementById('current-api').textContent = USE_COZE ? 'Coze' : 'DeepSeek';
+        document.getElementById('bot-id').textContent = COZE_BOT_ID;
+        document.getElementById('user-id').textContent = COZE_USER_ID;
+
+        // Sample conversation for testing
+        const sampleConversation = [
+            { sender: "SARAH", message: "Hey! I saw your work and I love it 🥹 I just can't afford much right now. Do you offer any split payments?" },
+            { sender: "Me", message: "Thanks Aisha — I really appreciate that. What kind of funnel are you looking to build?" },
+            { sender: "SARAH", message: "Just a landing page and email signup. I have a $150 budget." }
+        ];
+
+        function formatConversationAsTranscript(messages) {
+            return messages.map(m => `${m.sender}: ${m.message}`).join('\n');
+        }
+
+        // Function to display suggestions in HTML format
+        function displaySuggestionsHTML(suggestions, containerId) {
+            const container = document.getElementById(containerId);
+            container.style.display = 'block';
+            
+            if (!Array.isArray(suggestions) || suggestions.length === 0) {
+                container.innerHTML = '<div style="text-align: center; color: #dc3545; padding: 20px;">No suggestions available</div>';
+                return;
+            }
+
+            const suggestionsHtml = suggestions.map((s, index) => {
+                let reasonHtml = '';
+                if (typeof s.reason === 'object' && s.reason !== null) {
+                    reasonHtml = `
+                        <div class="reason-section">
+                            <div class="reason-title">
+                                🧠 Why this works
+                                <span style="font-size:11px;font-weight:400;color:#888;">(for your learning, not for copying)</span>
+                            </div>
+                            <div class="reason-text">${s.reason.en || ''}</div>
+                            <div class="reason-text">${s.reason.zh || ''}</div>
+                        </div>
+                    `;
+                } else {
+                    reasonHtml = `
+                        <div class="reason-section">
+                            <div class="reason-title">
+                                🧠 Why this works
+                                <span style="font-size:11px;font-weight:400;color:#888;">(for your learning, not for copying)</span>
+                            </div>
+                            <div class="reason-text">${s.reason || 'No reason provided'}</div>
+                        </div>
+                    `;
+                }
+                
+                return `
+                    <div class="suggestion-card">
+                        <div style="font-size:13px;color:#764ba2;font-weight:600;margin-bottom:6px;">
+                            Suggestion ${index + 1}
+                        </div>
+                        <div class="suggestion-text">${s.suggestion || 'No suggestion available'}</div>
+                        ${reasonHtml}
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = suggestionsHtml;
+        }
+
+        async function callCozeAPI(conversation, guide, context = '', stage = 'Opening', onStreamUpdate = null) {
+            try {
+                const transcript = formatConversationAsTranscript(conversation);
+                console.log('[COZE DEBUG] Transcript sent to Coze:', transcript);
+                
+                let messageContent = transcript;
+                if (context && context.length > 0) {
+                    messageContent = `[Context: ${context}]\n\n${transcript}`;
+                }
+                
+                const payload = {
+                    bot_id: COZE_BOT_ID,
+                    user_id: COZE_USER_ID,
+                    stream: true,
+                    custom_variables: {
+                        stage: stage
+                    },
+                    additional_messages: [
+                        {
+                            role: 'user',
+                            type: 'question',
+                            content_type: 'text',
+                            content: messageContent
+                        }
+                    ]
+                };
+                
+                console.log('[COZE DEBUG] Full payload sent to Coze:', JSON.stringify(payload, null, 2));
+                
+                const response = await fetch('https://api.coze.cn/v3/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${COZE_API_TOKEN}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                if (!response.ok) {
+                    const text = await response.text();
+                    console.error('Coze API HTTP Error:', response.status, text);
+                    return { error: 'http', status: response.status, statusText: response.statusText };
+                }
+                
+                // Handle streaming response
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullContent = '';
+                let finalContentReceived = false;
+                let buffer = '';
+                let streamLog = [];
+                
+                try {
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) {
+                            processBuffer();
+                            break;
+                        }
+                        
+                        const chunk = decoder.decode(value, { stream: true });
+                        buffer += chunk;
+                        
+                        // Log stream data for debugging
+                        streamLog.push({
+                            timestamp: new Date().toISOString(),
+                            chunk: chunk,
+                            chunkLength: chunk.length
+                        });
+                        
+                        processBuffer();
+                        
+                        // Call update function if provided
+                        if (onStreamUpdate) {
+                            onStreamUpdate({
+                                fullContent,
+                                finalContentReceived,
+                                streamLog,
+                                currentChunk: chunk
+                            });
+                        }
+                    }
+                } finally {
+                    reader.releaseLock();
+                }
+                
+                function processBuffer() {
+                    const parts = buffer.split('\n\n');
+                    buffer = parts.pop() || '';
+                    
+                    for (const part of parts) {
+                        if (part.trim() === '') continue;
+                        
+                        const lines = part.split('\n');
+                        if (lines.length < 2) continue;
+                        
+                        const eventLine = lines[0];
+                        const dataLine = lines.slice(1).join('\n');
+                        
+                        if (!eventLine.startsWith('event:') || !dataLine.startsWith('data:')) {
+                            console.warn('[COZE STREAM] Malformed event block:', part);
+                            continue;
+                        }
+                        
+                        try {
+                            const eventType = eventLine.substring('event:'.length).trim();
+                            const eventData = JSON.parse(dataLine.substring('data:'.length));
+                            
+                            console.log('[COZE STREAM] Event:', eventType, 'Data:', eventData);
+                            
+                            if (eventData.type === 'answer' && eventData.content) {
+                                if (eventType === 'conversation.message.delta') {
+                                    fullContent += eventData.content;
+                                } else if (eventType === 'conversation.message.completed') {
+                                    fullContent = eventData.content;
+                                    finalContentReceived = true;
+                                    break;
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('[COZE STREAM] Error parsing event data:', part, e);
+                        }
+                    }
+                    
+                    if (finalContentReceived) {
+                        buffer = '';
+                    }
+                }
+                
+                console.log('[COZE DEBUG] Full streamed content:', fullContent);
+                
+                if (!fullContent) {
+                    return { error: 'no_content' };
+                }
+                
+                // Remove Markdown code block if present
+                const codeBlockMatch = fullContent.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+                if (codeBlockMatch) {
+                    fullContent = codeBlockMatch[1];
+                }
+                fullContent = fullContent.trim();
+                
+                try {
+                    const parsed = JSON.parse(fullContent);
+                    if (!Array.isArray(parsed) || parsed.length === 0) {
+                        return { error: 'empty_array' };
+                    }
+                    return parsed;
+                } catch (err) {
+                    console.warn('Coze response not valid JSON. Raw content:', fullContent, err);
+                    return { error: 'parse' };
+                }
+            } catch (error) {
+                console.error('Coze API Exception:', error);
+                return { error: 'exception' };
+            }
+        }
+
+        async function testCozeAPI() {
+            const resultDiv = document.getElementById('test-result');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result info';
+            resultDiv.textContent = 'Testing Coze API connection...';
+
+            try {
+                const testPayload = {
+                    bot_id: COZE_BOT_ID,
+                    user_id: COZE_USER_ID,
+                    stream: true,
+                    additional_messages: [
+                        {
+                            role: 'user',
+                            type: 'question',
+                            content_type: 'text',
+                            content: 'Hello, this is a test message.'
+                        }
+                    ]
+                };
+
+                const response = await fetch('https://api.coze.cn/v3/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${COZE_API_TOKEN}`
+                    },
+                    body: JSON.stringify(testPayload)
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `❌ API Test Failed\nStatus: ${response.status}\nError: ${errorText}`;
+                    return;
+                }
+
+                // Handle streaming response for test
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullContent = '';
+                let finalContentReceived = false;
+                let buffer = '';
+                let streamData = [];
+
+                try {
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) {
+                            processBuffer();
+                            break;
+                        }
+                        
+                        const chunk = decoder.decode(value, { stream: true });
+                        streamData.push(chunk);
+                        buffer += chunk;
+                        processBuffer();
+                    }
+                } finally {
+                    reader.releaseLock();
+                }
+
+                function processBuffer() {
+                    const parts = buffer.split('\n\n');
+                    buffer = parts.pop() || '';
+                    
+                    for (const part of parts) {
+                        if (part.trim() === '') continue;
+                        
+                        const lines = part.split('\n');
+                        if (lines.length < 2) continue;
+                        
+                        const eventLine = lines[0];
+                        const dataLine = lines.slice(1).join('\n');
+                        
+                        if (!eventLine.startsWith('event:') || !dataLine.startsWith('data:')) {
+                            console.warn('[COZE STREAM] Malformed event block:', part);
+                            continue;
+                        }
+                        
+                        try {
+                            const eventType = eventLine.substring('event:'.length).trim();
+                            const eventData = JSON.parse(dataLine.substring('data:'.length));
+                            
+                            console.log('[COZE STREAM] Event:', eventType, 'Data:', eventData);
+                            
+                            if (eventData.type === 'answer' && eventData.content) {
+                                if (eventType === 'conversation.message.delta') {
+                                    fullContent += eventData.content;
+                                } else if (eventType === 'conversation.message.completed') {
+                                    fullContent = eventData.content;
+                                    finalContentReceived = true;
+                                    break;
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('[COZE STREAM] Error parsing event data:', part, e);
+                        }
+                    }
+                    
+                    if (finalContentReceived) {
+                        buffer = '';
+                    }
+                }
+
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `✅ API Test Successful!\n\nStreamed Content: ${fullContent || 'No content received'}\n\nRaw Stream Data:\n${JSON.stringify(streamData, null, 2)}`;
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ API Test Failed\nError: ${error.message}`;
+            }
+        }
+
+        async function testWithSampleConversation() {
+            const resultDiv = document.getElementById('sample-result');
+            const suggestionsDiv = document.getElementById('suggestions-display');
+            
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result info';
+            resultDiv.innerHTML = 'Testing with sample conversation...<span class="streaming-indicator">🔄 Streaming...</span>';
+            
+            suggestionsDiv.style.display = 'none';
+            suggestionsDiv.innerHTML = '';
+
+            let streamLog = [];
+            let lastUpdateTime = Date.now();
+
+            const onStreamUpdate = (streamData) => {
+                // Simple progress update
+                const indicator = resultDiv.querySelector('.streaming-indicator');
+                if (indicator) {
+                    indicator.textContent = `🔄 Streaming...`;
+                }
+            };
+
+            try {
+                const aiResponse = await callCozeAPI(sampleConversation, '', 'Test context', 'Discovery', onStreamUpdate);
+                
+                if (aiResponse && Array.isArray(aiResponse) && aiResponse.length > 0) {
+                    resultDiv.className = 'result success';
+                    resultDiv.innerHTML = `✅ Sample Conversation Test Successful!<br><br>Found ${aiResponse.length} suggestions.`;
+                    
+                    // Display suggestions in HTML format
+                    displaySuggestionsHTML(aiResponse, 'suggestions-display');
+                } else if (aiResponse && aiResponse.error) {
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = `❌ Sample Test Failed<br>Error: ${aiResponse.error}<br>Details: ${JSON.stringify(aiResponse, null, 2)}`;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.innerHTML = `❌ Sample Test Failed<br>Unexpected response: ${JSON.stringify(aiResponse, null, 2)}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.innerHTML = `❌ Sample Test Failed<br>Error: ${error.message}`;
+            }
+        }
+
+        async function testStreamingDebug() {
+            const resultDiv = document.getElementById('streaming-debug');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result info';
+            resultDiv.textContent = 'Testing streaming data...';
+
+            try {
+                const testPayload = {
+                    bot_id: COZE_BOT_ID,
+                    user_id: COZE_USER_ID,
+                    stream: true,
+                    additional_messages: [
+                        {
+                            role: 'user',
+                            type: 'question',
+                            content_type: 'text',
+                            content: 'Hello, this is a test message.'
+                        }
+                    ]
+                };
+
+                const response = await fetch('https://api.coze.cn/v3/chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${COZE_API_TOKEN}`
+                    },
+                    body: JSON.stringify(testPayload)
+                });
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `❌ Streaming Debug Failed\nStatus: ${response.status}\nError: ${errorText}`;
+                    return;
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullContent = '';
+                let finalContentReceived = false;
+                let buffer = '';
+                let streamData = [];
+                let eventCount = 0;
+
+                try {
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) {
+                            processBuffer();
+                            break;
+                        }
+                        
+                        const chunk = decoder.decode(value, { stream: true });
+                        streamData.push(chunk);
+                        buffer += chunk;
+                        processBuffer();
+                    }
+                } finally {
+                    reader.releaseLock();
+                }
+
+                function processBuffer() {
+                    const parts = buffer.split('\n\n');
+                    buffer = parts.pop() || '';
+                    
+                    for (const part of parts) {
+                        if (part.trim() === '') continue;
+                        
+                        const lines = part.split('\n');
+                        if (lines.length < 2) continue;
+                        
+                        const eventLine = lines[0];
+                        const dataLine = lines.slice(1).join('\n');
+                        
+                        if (!eventLine.startsWith('event:') || !dataLine.startsWith('data:')) {
+                            console.warn('[COZE STREAM] Malformed event block:', part);
+                            continue;
+                        }
+                        
+                        try {
+                            const eventType = eventLine.substring('event:'.length).trim();
+                            const eventData = JSON.parse(dataLine.substring('data:'.length));
+                            
+                            eventCount++;
+                            console.log(`[COZE STREAM] Event ${eventCount}:`, eventType, 'Data type:', eventData.type);
+                            
+                            if (eventData.type === 'answer' && eventData.content) {
+                                if (eventType === 'conversation.message.delta') {
+                                    fullContent += eventData.content;
+                                    console.log(`[COZE STREAM] Delta event ${eventCount}:`, eventData.content.length, 'chars added');
+                                } else if (eventType === 'conversation.message.completed') {
+                                    fullContent = eventData.content;
+                                    finalContentReceived = true;
+                                    console.log(`[COZE STREAM] Completed event ${eventCount}:`, eventData.content.length, 'chars total');
+                                    break;
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('[COZE STREAM] Error parsing event data:', part, e);
+                        }
+                    }
+                    
+                    if (finalContentReceived) {
+                        buffer = '';
+                    }
+                }
+
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `✅ Streaming Debug Successful!\n\nTotal Events: ${eventCount}\nFinal Content Length: ${fullContent.length}\n\nStreamed Content: ${fullContent || 'No content received'}`;
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ Streaming Debug Failed\nError: ${error.message}`;
+            }
+        }
+
+        function testAPISwitch() {
+            const resultDiv = document.getElementById('switch-result');
+            resultDiv.style.display = 'block';
+            resultDiv.className = 'result info';
+            resultDiv.textContent = `Current API: ${USE_COZE ? 'Coze' : 'DeepSeek'}\n\nTo switch APIs, change the USE_COZE variable in content.js:\n\nconst USE_COZE = ${!USE_COZE}; // Switch to ${USE_COZE ? 'DeepSeek' : 'Coze'}\n\nThen reload the extension.`;
+        }
+    </script>
+</body>
+</html> 
