@@ -426,8 +426,8 @@ function createSidePanel() {
             user-select: none;
         ">
             <div>
-                <h3 style="margin: 0; font-size: 16px; font-weight: 600;">🤖 Closing Coach</h3>
-                <div style="font-size: 12px; opacity: 0.9;">AI Sales Assistant (${USE_COZE ? 'Coze' : 'DeepSeek'})</div>
+                <h3 style="margin: 0; font-size: 16px; font-weight: 600;">🤖 AIA RJ 助攻神器</h3>
+                <div style="font-size: 12px; opacity: 0.9;">AI Agency 聊天助攻神器</div>
             </div>
             <button id="close-panel" style="
                 background: rgba(255, 255, 255, 0.2);
