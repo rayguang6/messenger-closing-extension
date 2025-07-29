@@ -1,8 +1,8 @@
 {
     "manifest_version": 3,
-    "name": "Facebook Chat AI Assistant",
+    "name": "AIA RJ 助攻神器",
     "version": "0.1.0",
-    "description": "AI-powered conversation suggestions for Facebook Chat",
+    "description": "AI-powered conversation suggestions for Messenger Chat",
     
     "icons": {
       "16": "icons/icon16.png",
